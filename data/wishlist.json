@@ -1,7 +1,7 @@
 [
   {
     "id": "item-1792936954844-1g69v",
-    "title": "Sparkleiot LoRa V3 Heltec 868 MHz SX1262 ESP32-S3 für Meshtastic 1 Stück | Entwicklungsboard mit ESP32-S3, LoRa SX1262 868 MHz, WLAN/BLE, inkl. 5 dBi",
+    "title": "Sparkleiot LoRa V3 Heltec 868 MHz SX1262 ESP32-S3 für Meshtastic",
     "url": "https://www.amazon.de/Sparkleiot-Development-ESP32-S3-Antenna-Meshtastic/dp/B0DGXFF74V",
     "imageUrl": "https://m.media-amazon.com/images/I/51ogkUAEUkL._AC_SX679_.jpg",
     "siteName": "amazon.de",
@@ -10,6 +10,7 @@
     "claimed": false,
     "claimedAt": null,
     "claimerToken": null,
-    "createdAt": 1792936954844
+    "createdAt": 1792936954844,
+    "updatedAt": 1792939624404
   }
 ]

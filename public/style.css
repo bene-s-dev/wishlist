@@ -490,6 +490,7 @@ body {
   background: var(--bg-subtle);
 }
 
+.btn-admin-edit,
 .btn-admin-del {
   background: none;
   border: none;
@@ -503,10 +504,16 @@ body {
   transition: all var(--transition-fast);
 }
 
+.btn-admin-edit svg,
 .btn-admin-del svg {
   width: 15px;
   height: 15px;
   stroke-width: 2;
+}
+
+.btn-admin-edit:hover {
+  color: var(--color-primary);
+  background: var(--bg-subtle-hover);
 }
 
 .btn-admin-del:hover {

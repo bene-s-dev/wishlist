@@ -8,6 +8,7 @@ let items = [];
 let currentFilter = 'all';
 let isAdmin = localStorage.getItem('bene_wishlist_admin') === 'true';
 let targetClaimItem = null;
+let editingItemId = null;
 
 // Persistent unique token for this device/browser
 let deviceClaimToken = localStorage.getItem('bene_device_token');
@@ -207,16 +208,56 @@ function setupEventListeners() {
     });
   }
 
-  // Open & Close Add Modal
+  // Open & Close Add/Edit Modal
   function openAddModal() {
+    editingItemId = null;
     addWishForm.reset();
+    document.getElementById('addModalTitle').textContent = 'Neues Produkt eintragen';
+    document.getElementById('submitAddBtn').textContent = 'Produkt speichern';
     modalPreviewContainer.classList.add('hidden');
     addModal.classList.remove('hidden');
     setTimeout(() => urlInput.focus(), 100);
   }
 
-  closeAddModalBtn.addEventListener('click', () => addModal.classList.add('hidden'));
-  cancelAddBtn.addEventListener('click', () => addModal.classList.add('hidden'));
+  function openEditModal(item) {
+    editingItemId = item.id;
+    addWishForm.reset();
+    document.getElementById('addModalTitle').textContent = 'Wunsch bearbeiten';
+    document.getElementById('submitAddBtn').textContent = 'Änderungen speichern';
+
+    urlInput.value = item.url || '';
+    titleInput.value = item.title || '';
+    priceInput.value = item.price || '';
+    imageUrlInput.value = item.imageUrl || '';
+    noteInput.value = item.note || '';
+
+    if (item.imageUrl || item.title) {
+      modalPreviewContainer.classList.remove('hidden');
+      previewTitle.textContent = item.title || '';
+      previewSite.textContent = item.siteName || (item.url ? new URL(item.url.startsWith('http') ? item.url : 'https://' + item.url).hostname.replace(/^www\./, '') : 'Shop');
+      previewPrice.textContent = item.price || '';
+      if (item.imageUrl) {
+        previewImg.src = item.imageUrl;
+        previewImg.style.display = 'block';
+      } else {
+        previewImg.style.display = 'none';
+      }
+    } else {
+      modalPreviewContainer.classList.add('hidden');
+    }
+
+    addModal.classList.remove('hidden');
+    setTimeout(() => titleInput.focus(), 100);
+  }
+
+  closeAddModalBtn.addEventListener('click', () => {
+    addModal.classList.add('hidden');
+    editingItemId = null;
+  });
+  cancelAddBtn.addEventListener('click', () => {
+    addModal.classList.add('hidden');
+    editingItemId = null;
+  });
 
   // Auto-fetch metadata on paste or typing link
   let urlDebounce = null;
@@ -239,12 +280,13 @@ function setupEventListeners() {
     }
   });
 
-  // Submit new wish
+  // Submit wish (create or edit)
   addWishForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const submitBtn = document.getElementById('submitAddBtn');
+    const isEdit = !!editingItemId;
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Speichern...';
+    submitBtn.textContent = isEdit ? 'Aktualisieren...' : 'Speichern...';
 
     const payload = {
       url: urlInput.value.trim(),
@@ -255,16 +297,20 @@ function setupEventListeners() {
       siteName: previewSite.textContent || ''
     };
 
+    const endpoint = isEdit ? `/api/items/${editingItemId}` : '/api/items';
+    const method = isEdit ? 'PUT' : 'POST';
+
     try {
-      const res = await fetch('/api/items', {
-        method: 'POST',
+      const res = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok) {
         addModal.classList.add('hidden');
-        showToast('Wunsch erfolgreich eingetragen');
+        showToast(isEdit ? 'Wunsch erfolgreich aktualisiert' : 'Wunsch erfolgreich eingetragen');
+        editingItemId = null;
         await loadItems();
       } else {
         alert(data.error || 'Fehler beim Speichern');
@@ -273,7 +319,7 @@ function setupEventListeners() {
       alert('Netzwerkfehler beim Speichern');
     } finally {
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Produkt speichern';
+      submitBtn.textContent = isEdit ? 'Änderungen speichern' : 'Produkt speichern';
     }
   });
 
@@ -492,7 +538,14 @@ function renderItems() {
           ` : '<span></span>'}
 
           <div style="display: flex; align-items: center; gap: 6px;">
-            ${isAdmin ? `<button class="btn-admin-del" data-action="admin-delete" data-id="${item.id}" title="Löschen"><i data-lucide="trash-2"></i></button>` : ''}
+            ${isAdmin ? `
+              <button class="btn-admin-edit" data-action="admin-edit" data-id="${item.id}" title="Bearbeiten">
+                <i data-lucide="edit-3"></i>
+              </button>
+              <button class="btn-admin-del" data-action="admin-delete" data-id="${item.id}" title="Löschen">
+                <i data-lucide="trash-2"></i>
+              </button>
+            ` : ''}
             ${actionBtnHtml}
           </div>
         </div>
@@ -511,6 +564,10 @@ function renderItems() {
       });
     }
 
+    const editBtn = card.querySelector('[data-action="admin-edit"]');
+    if (editBtn) {
+      editBtn.addEventListener('click', () => openEditModal(item));
+    }
 
     const unclaimBtn = card.querySelector('[data-action="unclaim"]');
     if (unclaimBtn) {

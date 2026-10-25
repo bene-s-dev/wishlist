@@ -413,6 +413,48 @@ app.post('/api/unclaim/:id', (req, res) => {
   return res.status(403).json({ error: 'Nur derjenige, der reserviert hat, kann die Reservierung aufheben.' });
 });
 
+// PUT /api/items/:id - update an existing wish
+app.put('/api/items/:id', (req, res) => {
+  const { id } = req.params;
+  const { url, title, imageUrl, price, note, siteName } = req.body;
+
+  const items = loadItems();
+  const itemIndex = items.findIndex(it => it.id === id);
+
+  if (itemIndex === -1) {
+    return res.status(404).json({ error: 'Geschenk nicht gefunden' });
+  }
+
+  const existing = items[itemIndex];
+
+  let finalTitle = title !== undefined ? title.trim() : existing.title;
+  let finalUrl = url !== undefined ? (url.trim() ? (url.trim().startsWith('http') ? url.trim() : 'https://' + url.trim()) : '') : existing.url;
+  let finalImage = imageUrl !== undefined ? imageUrl.trim() : existing.imageUrl;
+  let finalPrice = price !== undefined ? price.trim() : existing.price;
+  let finalNote = note !== undefined ? note.trim() : existing.note;
+  let finalSite = siteName !== undefined ? siteName.trim() : existing.siteName;
+
+  if (finalUrl && (!finalSite || finalSite === '')) {
+    try {
+      finalSite = new URL(finalUrl).hostname.replace(/^www\./, '');
+    } catch (e) {}
+  }
+
+  items[itemIndex] = {
+    ...existing,
+    title: finalTitle || existing.title,
+    url: finalUrl,
+    imageUrl: finalImage,
+    siteName: finalSite,
+    price: finalPrice,
+    note: finalNote,
+    updatedAt: Date.now()
+  };
+
+  saveItems(items);
+  res.json({ success: true, item: items[itemIndex] });
+});
+
 // DELETE /api/items/:id - delete a wish
 app.delete('/api/items/:id', (req, res) => {
   const { id } = req.params;
