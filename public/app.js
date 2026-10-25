@@ -275,6 +275,11 @@ function setupEventListeners() {
     }
   });
 
+  // Live update preview price when user types or enters price manually
+  priceInput.addEventListener('input', () => {
+    previewPrice.textContent = priceInput.value.trim();
+  });
+
   // Auto-convert dollar to euro if pasted or entered
   priceInput.addEventListener('blur', () => {
     let p = priceInput.value.trim();
@@ -283,6 +288,7 @@ function setupEventListeners() {
       p = p.replace('.', ',') + ' €';
       priceInput.value = p;
     }
+    previewPrice.textContent = priceInput.value.trim();
   });
 
   // "oder ähnlich" Checkbox in modal
@@ -550,20 +556,10 @@ async function fetchMetadata(url) {
     if (meta.imageUrl && !imageUrlInput.value) {
       imageUrlInput.value = meta.imageUrl;
     }
-    if (meta.price) {
-      let formattedPrice = meta.price;
-      if (formattedPrice.includes('$') || /USD/i.test(formattedPrice)) {
-        formattedPrice = formattedPrice.replace(/\$/g, '').replace(/USD/i, '').trim().replace('.', ',') + ' €';
-      }
-      if (!priceInput.value) {
-        priceInput.value = formattedPrice;
-      }
-      previewPrice.textContent = formattedPrice;
-    }
-
     modalPreviewContainer.classList.remove('hidden');
     previewTitle.textContent = meta.title || 'Produkt';
     previewSite.textContent = meta.siteName || 'Shop';
+    previewPrice.textContent = priceInput.value.trim();
     if (meta.imageUrl) {
       previewImg.src = meta.imageUrl;
       previewImg.style.display = 'block';
@@ -641,12 +637,10 @@ function renderItems() {
     let badgeHtml = '';
     if (isSimilar) {
       badgeHtml = `
-        <div class="list-card-badge-row">
-          <span class="badge-orange">
-            <i data-lucide="layers"></i>
-            <span>oder ähnlich</span>
-          </span>
-        </div>
+        <span class="badge-orange">
+          <i data-lucide="layers"></i>
+          <span>oder ähnlich</span>
+        </span>
       `;
     }
 
@@ -708,12 +702,12 @@ function renderItems() {
       ${orderControlsHtml}
       ${thumbHtml}
       <div class="list-card-content">
-        ${badgeHtml}
         <h3 class="list-card-title">${escapeHtml(item.title)}</h3>
 
         <div class="list-card-meta">
           ${item.price ? `<span class="list-card-price">${escapeHtml(item.price)}</span>` : ''}
           ${domainName ? `<span class="meta-domain"><i data-lucide="globe"></i> ${escapeHtml(domainName)}</span>` : ''}
+          ${badgeHtml}
           ${item.note ? `<span class="meta-note" title="${escapeHtml(item.note)}"><i data-lucide="file-text"></i> ${escapeHtml(item.note)}</span>` : ''}
         </div>
 

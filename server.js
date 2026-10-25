@@ -247,11 +247,11 @@ async function scrapeUrlMetadata(targetUrl) {
     const html = await response.text();
     const $ = cheerio.load(html);
 
-    // Extract title
-    let title = (domain.includes('amazon.') && $('#productTitle').text().trim()) ||
-                $('meta[property="og:title"]').attr('content') ||
+    // Extract title from meta tags
+    let title = $('meta[property="og:title"]').attr('content') ||
                 $('meta[name="twitter:title"]').attr('content') ||
-                $('#productTitle').text().trim() ||
+                $('meta[name="title"]').attr('content') ||
+                (domain.includes('amazon.') && $('#productTitle').text().trim()) ||
                 $('title').text().trim() ||
                 domain;
 
@@ -264,11 +264,12 @@ async function scrapeUrlMetadata(targetUrl) {
     // Extract image - standard meta tags
     let imageUrl = $('meta[property="og:image:secure_url"]').attr('content') ||
                    $('meta[property="og:image"]').attr('content') ||
+                   $('meta[name="twitter:image:src"]').attr('content') ||
                    $('meta[name="twitter:image"]').attr('content') ||
                    $('link[rel="image_src"]').attr('href') ||
                    $('meta[itemprop="image"]').attr('content');
 
-    // Amazon-specific image extraction
+    // Amazon-specific image extraction as fallback if no meta image found
     if (!imageUrl && domain.includes('amazon.')) {
       const landingImg = $('#landingImage');
       if (landingImg.length) {
@@ -279,7 +280,6 @@ async function scrapeUrlMetadata(targetUrl) {
             const parsed = JSON.parse(dynamic);
             const urls = Object.keys(parsed);
             if (urls.length > 0) {
-              // Pick highest resolution
               urls.sort((a, b) => (parsed[b][0] * parsed[b][1]) - (parsed[a][0] * parsed[a][1]));
               imageUrl = urls[0];
             }
@@ -290,7 +290,6 @@ async function scrapeUrlMetadata(targetUrl) {
         imageUrl = $('#imgBlkFront').attr('src') || $('#main-image').attr('src');
       }
       if (!imageUrl) {
-        // Fallback: search regex in raw html
         const regexMatch = html.match(/https:\/\/[^"'\s]+media-amazon\.com\/images\/I\/[^"'\s]+?\.(?:jpg|jpeg|png|webp)/i);
         if (regexMatch) {
           imageUrl = regexMatch[0];
@@ -298,47 +297,24 @@ async function scrapeUrlMetadata(targetUrl) {
       }
     }
 
-    // Try detecting price in meta
-    let price = $('meta[property="product:price:amount"]').attr('content') ||
-                $('meta[property="og:price:amount"]').attr('content');
-    const currency = $('meta[property="product:price:currency"]').attr('content') || '€';
-    if (price) {
-      price = `${price} ${currency}`;
-    }
-
-    // Amazon price extraction
-    if (!price && domain.includes('amazon.')) {
-      const amazonPrice = $('.a-price .a-offscreen').first().text().trim() ||
-                          $('.priceToPay').first().text().trim() ||
-                          $('#priceblock_ourprice').text().trim() ||
-                          $('#priceblock_dealprice').text().trim();
-      if (amazonPrice) {
-        price = amazonPrice;
-      }
-    }
-
-    // JSON-LD fallback for images and prices (Shopify, WooCommerce, Galaxus, etc.)
-    $('script[type="application/ld+json"]').each((_, el) => {
-      try {
-        const raw = $(el).text();
-        const data = JSON.parse(raw);
-        const candidates = Array.isArray(data) ? data : [data];
-        for (const candidate of candidates) {
-          if (!imageUrl && candidate) {
-            if (typeof candidate.image === 'string') imageUrl = candidate.image;
-            else if (Array.isArray(candidate.image) && candidate.image[0]) {
-              imageUrl = typeof candidate.image[0] === 'string' ? candidate.image[0] : candidate.image[0].url;
-            } else if (candidate.image && candidate.image.url) imageUrl = candidate.image.url;
-          }
-          if (!price && candidate && candidate.offers) {
-            const offer = Array.isArray(candidate.offers) ? candidate.offers[0] : candidate.offers;
-            if (offer && offer.price) {
-              price = `${offer.price} ${offer.priceCurrency || '€'}`;
+    // JSON-LD fallback for images if no meta tag image found
+    if (!imageUrl) {
+      $('script[type="application/ld+json"]').each((_, el) => {
+        try {
+          const raw = $(el).text();
+          const data = JSON.parse(raw);
+          const candidates = Array.isArray(data) ? data : [data];
+          for (const candidate of candidates) {
+            if (!imageUrl && candidate) {
+              if (typeof candidate.image === 'string') imageUrl = candidate.image;
+              else if (Array.isArray(candidate.image) && candidate.image[0]) {
+                imageUrl = typeof candidate.image[0] === 'string' ? candidate.image[0] : candidate.image[0].url;
+              } else if (candidate.image && candidate.image.url) imageUrl = candidate.image.url;
             }
           }
-        }
-      } catch (e) {}
-    });
+        } catch (e) {}
+      });
+    }
 
     if (imageUrl && !imageUrl.startsWith('http')) {
       try {
@@ -348,32 +324,13 @@ async function scrapeUrlMetadata(targetUrl) {
       }
     }
 
-    // Function to ensure correct German/Euro currency formatting
-    const formatScrapedPrice = (rawPrice, targetDomain) => {
-      if (!rawPrice) return '';
-      let p = rawPrice.trim();
-      const isGermanOrEu = targetDomain.endsWith('.de') || targetDomain.endsWith('.at') || targetDomain.endsWith('.eu') || targetDomain.includes('amazon.de');
-
-      if (isGermanOrEu) {
-        if (p.includes('$') || /USD/i.test(p)) {
-          p = p.replace(/\$/g, '').replace(/USD/i, '').trim();
-          p = p.replace('.', ',') + ' €';
-        } else if (p.endsWith('€') || p.startsWith('€')) {
-          p = p.replace(/€/g, '').trim();
-          p = p.replace('.', ',') + ' €';
-        } else if (/^\d+([.,]\d{1,2})?$/.test(p)) {
-          p = p.replace('.', ',') + ' €';
-        }
-      }
-      return p.replace(/\s+/g, ' ').trim();
-    };
-
-    // Extract description
+    // Extract description from meta tags
     const description = $('meta[property="og:description"]').attr('content') ||
+                        $('meta[name="twitter:description"]').attr('content') ||
                         $('meta[name="description"]').attr('content') ||
                         '';
 
-    // Extract site name
+    // Extract site name from meta tags
     const siteName = $('meta[property="og:site_name"]').attr('content') || domain;
 
     return {
@@ -383,7 +340,7 @@ async function scrapeUrlMetadata(targetUrl) {
       imageUrl: imageUrl || '',
       description: description.slice(0, 200),
       siteName: siteName || domain,
-      price: formatScrapedPrice(price, domain)
+      price: ''
     };
   } catch (error) {
     clearTimeout(timeout);
@@ -467,7 +424,6 @@ app.post('/api/items', async (req, res) => {
       if (!finalTitle && meta.title) finalTitle = meta.title;
       if (!finalImage && meta.imageUrl) finalImage = meta.imageUrl;
       if (!finalSite && meta.siteName) finalSite = meta.siteName;
-      if (!finalPrice && meta.price) finalPrice = meta.price;
     } catch (e) {
       console.warn('Scraping error during item creation:', e.message);
     }

@@ -120,7 +120,7 @@
               <span class="spinner-sm hidden"></span>
             </button>
           </div>
-          <span class="field-hint">Bild, Titel und Preis werden beim Einfügen automatisch erkannt.</span>
+          <span class="field-hint">Bild und Titel werden beim Einfügen automatisch erkannt.</span>
         </div>
 
         <!-- Live Preview inside Modal -->
@@ -132,9 +132,11 @@
               <span id="previewSite" class="preview-site-tag">shop.de</span>
             </div>
             <div class="preview-content">
-              <div id="previewBadge" class="preview-badge-pill hidden"></div>
               <div id="previewTitle" class="preview-title">Titel</div>
-              <div id="previewPrice" class="preview-price"></div>
+              <div class="preview-meta-row" style="display: flex; align-items: center; gap: 6px; margin-top: 3px;">
+                <div id="previewPrice" class="preview-price"></div>
+                <div id="previewBadge" class="preview-badge-pill hidden"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -186,7 +188,7 @@
       <div class="modal-status-icon"><i data-lucide="lock"></i></div>
       <h3 class="modal-title mb-1">Das wird schon geschenkt!</h3>
       <p class="modal-subtitle">
-        Jemand anderes hat dieses Geschenk bereits reserviert, damit es nicht doppelt geschenkt wird. Auch hier weiß der Beschenkte von nichts.
+        Jemand anderes hat dieses Geschenk bereits reserviert, damit es nicht doppelt geschenkt wird.
       </p>
       <div class="claimed-item-preview mt-3">
         <span id="claimedItemTitle" class="font-medium"></span>
