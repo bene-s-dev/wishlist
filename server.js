@@ -230,7 +230,8 @@ async function scrapeUrlMetadata(targetUrl) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7'
+        'Accept-Language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cookie': 'i18n-prefs=EUR; lc-acbde=de_DE; lc-main=de_DE; session-currency=EUR; sp-cdn="L5Z9:DE"'
       }
     });
 
@@ -344,6 +345,26 @@ async function scrapeUrlMetadata(targetUrl) {
       }
     }
 
+    // Function to ensure correct German/Euro currency formatting
+    const formatScrapedPrice = (rawPrice, targetDomain) => {
+      if (!rawPrice) return '';
+      let p = rawPrice.trim();
+      const isGermanOrEu = targetDomain.endsWith('.de') || targetDomain.endsWith('.at') || targetDomain.endsWith('.eu') || targetDomain.includes('amazon.de');
+
+      if (isGermanOrEu) {
+        if (p.includes('$') || /USD/i.test(p)) {
+          p = p.replace(/\$/g, '').replace(/USD/i, '').trim();
+          p = p.replace('.', ',') + ' €';
+        } else if (p.endsWith('€') || p.startsWith('€')) {
+          p = p.replace(/€/g, '').trim();
+          p = p.replace('.', ',') + ' €';
+        } else if (/^\d+([.,]\d{1,2})?$/.test(p)) {
+          p = p.replace('.', ',') + ' €';
+        }
+      }
+      return p.replace(/\s+/g, ' ').trim();
+    };
+
     // Extract description
     const description = $('meta[property="og:description"]').attr('content') ||
                         $('meta[name="description"]').attr('content') ||
@@ -359,7 +380,7 @@ async function scrapeUrlMetadata(targetUrl) {
       imageUrl: imageUrl || '',
       description: description.slice(0, 200),
       siteName: siteName || domain,
-      price: price || ''
+      price: formatScrapedPrice(price, domain)
     };
   } catch (error) {
     clearTimeout(timeout);

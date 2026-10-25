@@ -257,6 +257,16 @@ function setupEventListeners() {
     }
   });
 
+  // Auto-convert dollar to euro if pasted or entered
+  priceInput.addEventListener('blur', () => {
+    let p = priceInput.value.trim();
+    if (p.includes('$') || /USD/i.test(p)) {
+      p = p.replace(/\$/g, '').replace(/USD/i, '').trim();
+      p = p.replace('.', ',') + ' €';
+      priceInput.value = p;
+    }
+  });
+
   // Submit wish (create or edit)
   addWishForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -506,14 +516,20 @@ async function fetchMetadata(url) {
     if (meta.imageUrl && !imageUrlInput.value) {
       imageUrlInput.value = meta.imageUrl;
     }
-    if (meta.price && !priceInput.value) {
-      priceInput.value = meta.price;
+    if (meta.price) {
+      let formattedPrice = meta.price;
+      if (formattedPrice.includes('$') || /USD/i.test(formattedPrice)) {
+        formattedPrice = formattedPrice.replace(/\$/g, '').replace(/USD/i, '').trim().replace('.', ',') + ' €';
+      }
+      if (!priceInput.value) {
+        priceInput.value = formattedPrice;
+      }
+      previewPrice.textContent = formattedPrice;
     }
 
     modalPreviewContainer.classList.remove('hidden');
     previewTitle.textContent = meta.title || 'Produkt';
     previewSite.textContent = meta.siteName || 'Shop';
-    previewPrice.textContent = meta.price || '';
     if (meta.imageUrl) {
       previewImg.src = meta.imageUrl;
       previewImg.style.display = 'block';
