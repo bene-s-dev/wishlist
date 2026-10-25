@@ -2,6 +2,7 @@ const express = require('express');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
+const Redis = require('ioredis');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +28,76 @@ if (process.env.VERCEL && !fs.existsSync(DATA_FILE)) {
       console.warn('Could not seed /tmp/wishlist.json', e);
     }
   }
+}
+
+// Redis Setup via STORAGE_URL
+const STORAGE_URL = process.env.STORAGE_URL || process.env.REDIS_URL || process.env.KV_URL;
+const REDIS_KEY = 'wishlist:items';
+let redisClient = null;
+
+if (STORAGE_URL) {
+  try {
+    const isRest = STORAGE_URL.startsWith('http://') || STORAGE_URL.startsWith('https://');
+    if (!isRest) {
+      redisClient = new Redis(STORAGE_URL, {
+        maxRetriesPerRequest: 3,
+        connectTimeout: 7000,
+        lazyConnect: false,
+        tls: STORAGE_URL.startsWith('rediss://') ? { rejectUnauthorized: false } : undefined
+      });
+
+      redisClient.on('connect', () => {
+        console.log('✅ Verbunden mit Redis über STORAGE_URL');
+      });
+
+      redisClient.on('error', (err) => {
+        console.warn('⚠️ Redis Verbindungsfehler:', err.message);
+      });
+    } else {
+      console.log('ℹ️ STORAGE_URL ist REST-Endpunkt');
+    }
+  } catch (err) {
+    console.error('⚠️ Fehler bei Redis-Initialisierung:', err.message);
+    redisClient = null;
+  }
+} else {
+  console.log('ℹ️ Keine STORAGE_URL gefunden – nutze lokale Speicherung in data/wishlist.json');
+}
+
+// Helpers for Redis get/set (supporting both ioredis and Upstash REST)
+async function getRedisData() {
+  if (STORAGE_URL && (STORAGE_URL.startsWith('http://') || STORAGE_URL.startsWith('https://'))) {
+    const token = process.env.STORAGE_REST_API_TOKEN || process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+    const res = await fetch(`${STORAGE_URL}/get/${REDIS_KEY}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await res.json();
+    return json.result ? JSON.parse(json.result) : null;
+  } else if (redisClient) {
+    const data = await redisClient.get(REDIS_KEY);
+    return data ? JSON.parse(data) : null;
+  }
+  return null;
+}
+
+async function setRedisData(items) {
+  const str = JSON.stringify(items);
+  if (STORAGE_URL && (STORAGE_URL.startsWith('http://') || STORAGE_URL.startsWith('https://'))) {
+    const token = process.env.STORAGE_REST_API_TOKEN || process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+    const res = await fetch(`${STORAGE_URL}/set/${REDIS_KEY}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(str)
+    });
+    return res.ok;
+  } else if (redisClient) {
+    await redisClient.set(REDIS_KEY, str);
+    return true;
+  }
+  return false;
 }
 
 // Default initial items if wishlist is completely empty
@@ -72,7 +143,7 @@ const initialWishes = [
   }
 ];
 
-function loadItems() {
+function loadLocalFallbackItems() {
   try {
     if (fs.existsSync(DATA_FILE)) {
       const data = fs.readFileSync(DATA_FILE, 'utf8');
@@ -81,11 +152,11 @@ function loadItems() {
   } catch (err) {
     console.error('Error reading wishlist file, initializing with defaults', err);
   }
-  saveItems(initialWishes);
+  saveLocalFallbackItems(initialWishes);
   return initialWishes;
 }
 
-function saveItems(items) {
+function saveLocalFallbackItems(items) {
   try {
     const tempFile = `${DATA_FILE}.tmp.${Date.now()}`;
     fs.writeFileSync(tempFile, JSON.stringify(items, null, 2), 'utf8');
@@ -101,6 +172,40 @@ function saveItems(items) {
       return false;
     }
   }
+}
+
+// Unified loadItems: Redis primary with fallback to local file
+async function loadItems() {
+  if (STORAGE_URL || redisClient) {
+    try {
+      const items = await getRedisData();
+      if (items && Array.isArray(items)) {
+        return items;
+      }
+      // If redis is empty, seed it with the existing local items!
+      const initial = loadLocalFallbackItems();
+      await setRedisData(initial);
+      return initial;
+    } catch (err) {
+      console.error('Redis read error, falling back to local file:', err.message);
+    }
+  }
+  return loadLocalFallbackItems();
+}
+
+// Unified saveItems: saves to Redis and local backup
+async function saveItems(items) {
+  let redisSaved = false;
+  if (STORAGE_URL || redisClient) {
+    try {
+      redisSaved = await setRedisData(items);
+    } catch (err) {
+      console.error('Redis write error:', err.message);
+    }
+  }
+
+  const localSaved = saveLocalFallbackItems(items);
+  return redisSaved || localSaved;
 }
 
 app.use(express.json());
@@ -298,8 +403,8 @@ app.post('/api/auth/verify', (req, res) => {
 });
 
 // GET /api/items - list all items
-app.get('/api/items', (req, res) => {
-  const items = loadItems();
+app.get('/api/items', async (req, res) => {
+  const items = await loadItems();
   res.json({ items });
 });
 
@@ -378,9 +483,9 @@ app.post('/api/items', async (req, res) => {
     createdAt: Date.now()
   };
 
-  const items = loadItems();
+  const items = await loadItems();
   items.unshift(newItem);
-  const saved = saveItems(items);
+  const saved = await saveItems(items);
   if (!saved) {
     return res.status(500).json({ error: 'Fehler beim Speichern der Wunschliste' });
   }
@@ -389,11 +494,11 @@ app.post('/api/items', async (req, res) => {
 });
 
 // POST /api/claim/:id - claim an item ("Ich schenke das")
-app.post('/api/claim/:id', (req, res) => {
+app.post('/api/claim/:id', async (req, res) => {
   const { id } = req.params;
   const { claimerToken } = req.body;
 
-  const items = loadItems();
+  const items = await loadItems();
   const itemIndex = items.findIndex(it => it.id === id);
 
   if (itemIndex === -1) {
@@ -417,7 +522,7 @@ app.post('/api/claim/:id', (req, res) => {
   item.claimedAt = Date.now();
   item.claimerToken = claimerToken || 'guest-' + Date.now();
 
-  const saved = saveItems(items);
+  const saved = await saveItems(items);
   if (!saved) {
     return res.status(500).json({ error: 'Fehler beim Speichern der Reservierung' });
   }
@@ -431,11 +536,11 @@ app.post('/api/claim/:id', (req, res) => {
 });
 
 // POST /api/unclaim/:id - release a reservation (e.g. if the user made a mistake or admin)
-app.post('/api/unclaim/:id', (req, res) => {
+app.post('/api/unclaim/:id', async (req, res) => {
   const { id } = req.params;
   const { claimerToken, isAdmin } = req.body;
 
-  const items = loadItems();
+  const items = await loadItems();
   const item = items.find(it => it.id === id);
 
   if (!item) {
@@ -447,7 +552,7 @@ app.post('/api/unclaim/:id', (req, res) => {
     item.claimed = false;
     item.claimedAt = null;
     item.claimerToken = null;
-    const saved = saveItems(items);
+    const saved = await saveItems(items);
     if (!saved) {
       return res.status(500).json({ error: 'Fehler beim Freigeben' });
     }
@@ -458,13 +563,13 @@ app.post('/api/unclaim/:id', (req, res) => {
 });
 
 // PUT /api/items/reorder or POST /api/items/reorder - reorder wishlist items
-const handleReorder = (req, res) => {
+const handleReorder = async (req, res) => {
   const { itemIds } = req.body;
   if (!Array.isArray(itemIds)) {
     return res.status(400).json({ error: 'itemIds muss ein Array sein' });
   }
 
-  const items = loadItems();
+  const items = await loadItems();
   const itemMap = new Map(items.map(it => [it.id, it]));
 
   const reordered = [];
@@ -480,7 +585,7 @@ const handleReorder = (req, res) => {
     reordered.push(item);
   }
 
-  const saved = saveItems(reordered);
+  const saved = await saveItems(reordered);
   if (!saved) {
     return res.status(500).json({ error: 'Fehler beim Speichern der neuen Reihenfolge' });
   }
@@ -492,11 +597,11 @@ app.put('/api/items/reorder', handleReorder);
 app.post('/api/items/reorder', handleReorder);
 
 // PUT /api/items/:id - update an existing wish
-app.put('/api/items/:id', (req, res) => {
+app.put('/api/items/:id', async (req, res) => {
   const { id } = req.params;
   const { url, title, imageUrl, price, note, siteName } = req.body;
 
-  const items = loadItems();
+  const items = await loadItems();
   const itemIndex = items.findIndex(it => it.id === id);
 
   if (itemIndex === -1) {
@@ -533,7 +638,7 @@ app.put('/api/items/:id', (req, res) => {
     updatedAt: Date.now()
   };
 
-  const saved = saveItems(items);
+  const saved = await saveItems(items);
   if (!saved) {
     return res.status(500).json({ error: 'Fehler beim Speichern der Änderungen' });
   }
@@ -542,9 +647,9 @@ app.put('/api/items/:id', (req, res) => {
 });
 
 // DELETE /api/items/:id - delete a wish
-app.delete('/api/items/:id', (req, res) => {
+app.delete('/api/items/:id', async (req, res) => {
   const { id } = req.params;
-  let items = loadItems();
+  let items = await loadItems();
   const initialLength = items.length;
   items = items.filter(it => it.id !== id);
 
@@ -552,7 +657,7 @@ app.delete('/api/items/:id', (req, res) => {
     return res.status(404).json({ error: 'Geschenk nicht gefunden' });
   }
 
-  const saved = saveItems(items);
+  const saved = await saveItems(items);
   if (!saved) {
     return res.status(500).json({ error: 'Fehler beim Löschen' });
   }
