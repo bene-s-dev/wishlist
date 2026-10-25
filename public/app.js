@@ -9,6 +9,8 @@ let currentFilter = 'all';
 let isAdmin = localStorage.getItem('bene_wishlist_admin') === 'true';
 let targetClaimItem = null;
 let editingItemId = null;
+let draggedItemId = null;
+let isReordering = false;
 
 // Persistent unique token for this device/browser
 let deviceClaimToken = localStorage.getItem('bene_device_token');
@@ -208,48 +210,6 @@ function setupEventListeners() {
     });
   }
 
-  // Open & Close Add/Edit Modal
-  function openAddModal() {
-    editingItemId = null;
-    addWishForm.reset();
-    document.getElementById('addModalTitle').textContent = 'Neues Produkt eintragen';
-    document.getElementById('submitAddBtn').textContent = 'Produkt speichern';
-    modalPreviewContainer.classList.add('hidden');
-    addModal.classList.remove('hidden');
-    setTimeout(() => urlInput.focus(), 100);
-  }
-
-  function openEditModal(item) {
-    editingItemId = item.id;
-    addWishForm.reset();
-    document.getElementById('addModalTitle').textContent = 'Wunsch bearbeiten';
-    document.getElementById('submitAddBtn').textContent = 'Änderungen speichern';
-
-    urlInput.value = item.url || '';
-    titleInput.value = item.title || '';
-    priceInput.value = item.price || '';
-    imageUrlInput.value = item.imageUrl || '';
-    noteInput.value = item.note || '';
-
-    if (item.imageUrl || item.title) {
-      modalPreviewContainer.classList.remove('hidden');
-      previewTitle.textContent = item.title || '';
-      previewSite.textContent = item.siteName || (item.url ? new URL(item.url.startsWith('http') ? item.url : 'https://' + item.url).hostname.replace(/^www\./, '') : 'Shop');
-      previewPrice.textContent = item.price || '';
-      if (item.imageUrl) {
-        previewImg.src = item.imageUrl;
-        previewImg.style.display = 'block';
-      } else {
-        previewImg.style.display = 'none';
-      }
-    } else {
-      modalPreviewContainer.classList.add('hidden');
-    }
-
-    addModal.classList.remove('hidden');
-    setTimeout(() => titleInput.focus(), 100);
-  }
-
   closeAddModalBtn.addEventListener('click', () => {
     addModal.classList.add('hidden');
     editingItemId = null;
@@ -259,11 +219,24 @@ function setupEventListeners() {
     editingItemId = null;
   });
 
+  // Auto-normalize URL on blur
+  urlInput.addEventListener('blur', () => {
+    let val = urlInput.value.trim();
+    if (val && !/^https?:\/\//i.test(val)) {
+      if (val.includes('.') && !val.includes(' ')) {
+        urlInput.value = 'https://' + val;
+      }
+    }
+  });
+
   // Auto-fetch metadata on paste or typing link
   let urlDebounce = null;
   urlInput.addEventListener('input', () => {
     clearTimeout(urlDebounce);
-    const val = urlInput.value.trim();
+    let val = urlInput.value.trim();
+    if (val && !/^https?:\/\//i.test(val) && val.includes('.') && !val.includes(' ')) {
+      val = 'https://' + val;
+    }
     if (val.startsWith('http://') || val.startsWith('https://')) {
       urlDebounce = setTimeout(() => {
         fetchMetadata(val);
@@ -272,8 +245,12 @@ function setupEventListeners() {
   });
 
   fetchPreviewBtn.addEventListener('click', () => {
-    const val = urlInput.value.trim();
+    let val = urlInput.value.trim();
     if (val) {
+      if (!/^https?:\/\//i.test(val)) {
+        val = 'https://' + val;
+        urlInput.value = val;
+      }
       fetchMetadata(val);
     } else {
       urlInput.focus();
@@ -285,16 +262,45 @@ function setupEventListeners() {
     e.preventDefault();
     const submitBtn = document.getElementById('submitAddBtn');
     const isEdit = !!editingItemId;
+
+    let rawUrl = urlInput.value.trim();
+    if (rawUrl && !/^https?:\/\//i.test(rawUrl)) {
+      rawUrl = 'https://' + rawUrl;
+      urlInput.value = rawUrl;
+    }
+
+    let titleVal = titleInput.value.trim();
+    if (!titleVal && previewTitle.textContent && previewTitle.textContent !== 'Titel') {
+      titleVal = previewTitle.textContent.trim();
+      titleInput.value = titleVal;
+    }
+
+    // Require at least title or URL
+    if (!titleVal && !rawUrl) {
+      showToast('Bitte gib einen Titel oder Link ein');
+      titleInput.focus();
+      return;
+    }
+
+    if (!titleVal && rawUrl) {
+      try {
+        titleVal = new URL(rawUrl).hostname.replace(/^www\./, '');
+        titleInput.value = titleVal;
+      } catch (e) {
+        titleVal = 'Wunsch';
+      }
+    }
+
     submitBtn.disabled = true;
     submitBtn.textContent = isEdit ? 'Aktualisieren...' : 'Speichern...';
 
     const payload = {
-      url: urlInput.value.trim(),
-      title: titleInput.value.trim(),
+      url: rawUrl,
+      title: titleVal,
       imageUrl: imageUrlInput.value.trim(),
       price: priceInput.value.trim(),
       note: noteInput.value.trim(),
-      siteName: previewSite.textContent || ''
+      siteName: previewSite.textContent && previewSite.textContent !== 'shop.de' ? previewSite.textContent.trim() : ''
     };
 
     const endpoint = isEdit ? `/api/items/${editingItemId}` : '/api/items';
@@ -307,7 +313,7 @@ function setupEventListeners() {
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && (data.success !== false)) {
         addModal.classList.add('hidden');
         showToast(isEdit ? 'Wunsch erfolgreich aktualisiert' : 'Wunsch erfolgreich eingetragen');
         editingItemId = null;
@@ -316,7 +322,8 @@ function setupEventListeners() {
         alert(data.error || 'Fehler beim Speichern');
       }
     } catch (err) {
-      alert('Netzwerkfehler beim Speichern');
+      console.error('Save error:', err);
+      alert('Netzwerkfehler beim Speichern. Bitte Verbindung prüfen.');
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = isEdit ? 'Änderungen speichern' : 'Produkt speichern';
@@ -378,6 +385,93 @@ function setupEventListeners() {
   });
 }
 
+// Open & Close Add/Edit Modal
+function openAddModal() {
+  editingItemId = null;
+  addWishForm.reset();
+  document.getElementById('addModalTitle').textContent = 'Neues Produkt eintragen';
+  document.getElementById('submitAddBtn').textContent = 'Produkt speichern';
+  modalPreviewContainer.classList.add('hidden');
+  addModal.classList.remove('hidden');
+  setTimeout(() => urlInput.focus(), 100);
+}
+
+function openEditModal(item) {
+  if (!item) return;
+  editingItemId = item.id;
+  addWishForm.reset();
+  document.getElementById('addModalTitle').textContent = 'Wunsch bearbeiten';
+  document.getElementById('submitAddBtn').textContent = 'Änderungen speichern';
+
+  urlInput.value = item.url || '';
+  titleInput.value = item.title || '';
+  priceInput.value = item.price || '';
+  imageUrlInput.value = item.imageUrl || '';
+  noteInput.value = item.note || '';
+
+  let site = item.siteName || '';
+  if (!site && item.url) {
+    try {
+      const u = item.url.startsWith('http') ? item.url : 'https://' + item.url;
+      site = new URL(u).hostname.replace(/^www\./, '');
+    } catch (e) {
+      site = 'Shop';
+    }
+  }
+
+  if (item.imageUrl || item.title) {
+    modalPreviewContainer.classList.remove('hidden');
+    previewTitle.textContent = item.title || '';
+    previewSite.textContent = site || 'Shop';
+    previewPrice.textContent = item.price || '';
+    if (item.imageUrl) {
+      previewImg.src = item.imageUrl;
+      previewImg.style.display = 'block';
+    } else {
+      previewImg.style.display = 'none';
+    }
+  } else {
+    modalPreviewContainer.classList.add('hidden');
+  }
+
+  addModal.classList.remove('hidden');
+  setTimeout(() => titleInput.focus(), 100);
+}
+
+// Reordering Logic
+async function moveItem(fromIndex, toIndex) {
+  if (fromIndex < 0 || fromIndex >= items.length || toIndex < 0 || toIndex >= items.length) return;
+  const [moved] = items.splice(fromIndex, 1);
+  items.splice(toIndex, 0, moved);
+  renderItems();
+  await saveNewOrder();
+}
+
+async function saveNewOrder() {
+  isReordering = true;
+  const itemIds = items.map(it => it.id);
+  try {
+    const res = await fetch('/api/items/reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemIds })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast('Fehler beim Speichern der Reihenfolge');
+      await loadItems();
+    } else {
+      showToast('Reihenfolge gespeichert');
+    }
+  } catch (err) {
+    console.error('Reorder error:', err);
+    showToast('Netzwerkfehler beim Umsortieren');
+    await loadItems();
+  } finally {
+    isReordering = false;
+  }
+}
+
 function updateAdminUI() {
   if (isAdmin) {
     adminIndicator.classList.remove('hidden');
@@ -437,6 +531,10 @@ async function fetchMetadata(url) {
 
 // Load wishlist items from API
 async function loadItems() {
+  if (isReordering || editingItemId !== null || !addModal.classList.contains('hidden')) {
+    return;
+  }
+
   try {
     const res = await fetch('/api/items');
     const data = await res.json();
@@ -470,11 +568,13 @@ function renderItems() {
     emptyState.classList.add('hidden');
   }
 
-  filtered.forEach(item => {
+  filtered.forEach((item, index) => {
     const isClaimedByMe = myClaims[item.id] === deviceClaimToken && item.claimed;
 
     const card = document.createElement('article');
     card.className = 'list-card';
+    card.dataset.id = item.id;
+    card.dataset.index = index;
 
     let domainName = item.siteName || '';
     if (!domainName && item.url) {
@@ -483,6 +583,26 @@ function renderItems() {
       } catch (e) {
         domainName = '';
       }
+    }
+
+    // Admin order controls (Move Up / Drag / Move Down)
+    let orderControlsHtml = '';
+    if (isAdmin) {
+      const isFirst = index === 0;
+      const isLast = index === filtered.length - 1;
+      orderControlsHtml = `
+        <div class="card-order-controls">
+          <button type="button" class="btn-order-move" data-action="move-up" data-id="${item.id}" ${isFirst ? 'disabled' : ''} title="Nach oben verschieben">
+            <i data-lucide="chevron-up"></i>
+          </button>
+          <div class="drag-handle" title="Gedrückt halten zum Umsortieren">
+            <i data-lucide="grip-vertical"></i>
+          </div>
+          <button type="button" class="btn-order-move" data-action="move-down" data-id="${item.id}" ${isLast ? 'disabled' : ''} title="Nach unten verschieben">
+            <i data-lucide="chevron-down"></i>
+          </button>
+        </div>
+      `;
     }
 
     // Thumbnail - never reveals claimed status of others beforehand
@@ -520,6 +640,7 @@ function renderItems() {
     }
 
     card.innerHTML = `
+      ${orderControlsHtml}
       ${thumbHtml}
       <div class="list-card-content">
         <h3 class="list-card-title">${escapeHtml(item.title)}</h3>
@@ -539,10 +660,10 @@ function renderItems() {
 
           <div style="display: flex; align-items: center; gap: 6px;">
             ${isAdmin ? `
-              <button class="btn-admin-edit" data-action="admin-edit" data-id="${item.id}" title="Bearbeiten">
+              <button type="button" class="btn-admin-edit" data-action="admin-edit" data-id="${item.id}" title="Bearbeiten">
                 <i data-lucide="edit-3"></i>
               </button>
-              <button class="btn-admin-del" data-action="admin-delete" data-id="${item.id}" title="Löschen">
+              <button type="button" class="btn-admin-del" data-action="admin-delete" data-id="${item.id}" title="Löschen">
                 <i data-lucide="trash-2"></i>
               </button>
             ` : ''}
@@ -566,12 +687,16 @@ function renderItems() {
 
     const editBtn = card.querySelector('[data-action="admin-edit"]');
     if (editBtn) {
-      editBtn.addEventListener('click', () => openEditModal(item));
+      editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openEditModal(item);
+      });
     }
 
     const unclaimBtn = card.querySelector('[data-action="unclaim"]');
     if (unclaimBtn) {
-      unclaimBtn.addEventListener('click', async () => {
+      unclaimBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         if (confirm(`Möchtest du die Reservierung für „${item.title}“ wieder aufheben?`)) {
           await handleUnclaim(item.id);
         }
@@ -580,10 +705,87 @@ function renderItems() {
 
     const delBtn = card.querySelector('[data-action="admin-delete"]');
     if (delBtn) {
-      delBtn.addEventListener('click', async () => {
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         if (confirm(`„${item.title}“ wirklich löschen?`)) {
           await handleDeleteItem(item.id);
         }
+      });
+    }
+
+    // Admin order controls: Move Up & Move Down
+    if (isAdmin) {
+      const moveUpBtn = card.querySelector('[data-action="move-up"]');
+      if (moveUpBtn && index > 0) {
+        moveUpBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await moveItem(index, index - 1);
+        });
+      }
+
+      const moveDownBtn = card.querySelector('[data-action="move-down"]');
+      if (moveDownBtn && index < filtered.length - 1) {
+        moveDownBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await moveItem(index, index + 1);
+        });
+      }
+
+      // Drag and Drop
+      card.setAttribute('draggable', 'true');
+
+      card.addEventListener('dragstart', (e) => {
+        draggedItemId = item.id;
+        card.classList.add('is-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', item.id);
+      });
+
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const rect = card.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        if (e.clientY < midY) {
+          card.classList.add('drag-over-above');
+          card.classList.remove('drag-over-below');
+        } else {
+          card.classList.add('drag-over-below');
+          card.classList.remove('drag-over-above');
+        }
+      });
+
+      card.addEventListener('dragleave', () => {
+        card.classList.remove('drag-over-above', 'drag-over-below');
+      });
+
+      card.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        card.classList.remove('drag-over-above', 'drag-over-below');
+        if (!draggedItemId || draggedItemId === item.id) return;
+
+        const fromIdx = items.findIndex(it => it.id === draggedItemId);
+        let toIdx = items.findIndex(it => it.id === item.id);
+        if (fromIdx === -1 || toIdx === -1) return;
+
+        const rect = card.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        if (e.clientY >= midY && fromIdx < toIdx) {
+          // Keep toIdx as is (will place after)
+        }
+
+        const [movedItem] = items.splice(fromIdx, 1);
+        items.splice(toIdx, 0, movedItem);
+        renderItems();
+        await saveNewOrder();
+      });
+
+      card.addEventListener('dragend', () => {
+        card.classList.remove('is-dragging');
+        document.querySelectorAll('.list-card').forEach(c => {
+          c.classList.remove('drag-over-above', 'drag-over-below', 'is-dragging');
+        });
+        draggedItemId = null;
       });
     }
 

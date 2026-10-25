@@ -87,9 +87,19 @@ function loadItems() {
 
 function saveItems(items) {
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(items, null, 2), 'utf8');
+    const tempFile = `${DATA_FILE}.tmp.${Date.now()}`;
+    fs.writeFileSync(tempFile, JSON.stringify(items, null, 2), 'utf8');
+    fs.renameSync(tempFile, DATA_FILE);
+    return true;
   } catch (err) {
-    console.error('Error writing wishlist file', err);
+    console.error('Error writing wishlist file atomically, attempting fallback', err);
+    try {
+      fs.writeFileSync(DATA_FILE, JSON.stringify(items, null, 2), 'utf8');
+      return true;
+    } catch (fallbackErr) {
+      console.error('Critical: Failed to save wishlist file', fallbackErr);
+      return false;
+    }
   }
 }
 
@@ -311,31 +321,56 @@ app.post('/api/items', async (req, res) => {
     return res.status(400).json({ error: 'Link oder Titel erforderlich' });
   }
 
-  let finalTitle = title;
-  let finalImage = imageUrl;
-  let finalSite = siteName;
-  let finalPrice = price;
+  let finalTitle = (title || '').trim();
+  let finalImage = (imageUrl || '').trim();
+  let finalSite = (siteName || '').trim();
+  let finalPrice = (price || '').trim();
+  let finalUrl = (url || '').trim();
 
-  // Auto-scrape if details are missing and URL is given
-  if (url && (!finalTitle || !finalImage)) {
-    const meta = await scrapeUrlMetadata(url);
-    if (!finalTitle) finalTitle = meta.title;
-    if (!finalImage) finalImage = meta.imageUrl;
-    if (!finalSite) finalSite = meta.siteName;
-    if (!finalPrice && meta.price) finalPrice = meta.price;
+  if (finalUrl && !/^https?:\/\//i.test(finalUrl)) {
+    finalUrl = 'https://' + finalUrl;
+  }
+
+  // Only auto-scrape if title or image is missing and URL is given
+  if (finalUrl && (!finalTitle || !finalImage)) {
+    try {
+      const meta = await scrapeUrlMetadata(finalUrl);
+      if (!finalTitle && meta.title) finalTitle = meta.title;
+      if (!finalImage && meta.imageUrl) finalImage = meta.imageUrl;
+      if (!finalSite && meta.siteName) finalSite = meta.siteName;
+      if (!finalPrice && meta.price) finalPrice = meta.price;
+    } catch (e) {
+      console.warn('Scraping error during item creation:', e.message);
+    }
   }
 
   if (!finalTitle) {
-    finalTitle = "Wunsch";
+    if (finalUrl) {
+      try {
+        finalTitle = new URL(finalUrl).hostname.replace(/^www\./, '');
+      } catch (e) {
+        finalTitle = "Wunsch";
+      }
+    } else {
+      finalTitle = "Wunsch";
+    }
+  }
+
+  if (finalUrl && !finalSite) {
+    try {
+      finalSite = new URL(finalUrl).hostname.replace(/^www\./, '');
+    } catch (e) {
+      finalSite = '';
+    }
   }
 
   const newItem = {
-    id: "item-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
-    title: finalTitle.trim(),
-    url: url ? (url.startsWith('http') ? url : 'https://' + url) : '',
-    imageUrl: finalImage || '',
-    siteName: finalSite || (url ? new URL(url.startsWith('http') ? url : 'https://' + url).hostname.replace(/^www\./, '') : ''),
-    price: finalPrice || '',
+    id: "item-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
+    title: finalTitle,
+    url: finalUrl,
+    imageUrl: finalImage,
+    siteName: finalSite,
+    price: finalPrice,
     note: (note || '').trim(),
     claimed: false,
     claimedAt: null,
@@ -345,9 +380,12 @@ app.post('/api/items', async (req, res) => {
 
   const items = loadItems();
   items.unshift(newItem);
-  saveItems(items);
+  const saved = saveItems(items);
+  if (!saved) {
+    return res.status(500).json({ error: 'Fehler beim Speichern der Wunschliste' });
+  }
 
-  res.status(201).json({ item: newItem });
+  res.status(201).json({ success: true, item: newItem });
 });
 
 // POST /api/claim/:id - claim an item ("Ich schenke das")
@@ -379,7 +417,10 @@ app.post('/api/claim/:id', (req, res) => {
   item.claimedAt = Date.now();
   item.claimerToken = claimerToken || 'guest-' + Date.now();
 
-  saveItems(items);
+  const saved = saveItems(items);
+  if (!saved) {
+    return res.status(500).json({ error: 'Fehler beim Speichern der Reservierung' });
+  }
 
   return res.json({
     success: true,
@@ -406,12 +447,49 @@ app.post('/api/unclaim/:id', (req, res) => {
     item.claimed = false;
     item.claimedAt = null;
     item.claimerToken = null;
-    saveItems(items);
+    const saved = saveItems(items);
+    if (!saved) {
+      return res.status(500).json({ error: 'Fehler beim Freigeben' });
+    }
     return res.json({ success: true, item });
   }
 
   return res.status(403).json({ error: 'Nur derjenige, der reserviert hat, kann die Reservierung aufheben.' });
 });
+
+// PUT /api/items/reorder or POST /api/items/reorder - reorder wishlist items
+const handleReorder = (req, res) => {
+  const { itemIds } = req.body;
+  if (!Array.isArray(itemIds)) {
+    return res.status(400).json({ error: 'itemIds muss ein Array sein' });
+  }
+
+  const items = loadItems();
+  const itemMap = new Map(items.map(it => [it.id, it]));
+
+  const reordered = [];
+  for (const id of itemIds) {
+    if (itemMap.has(id)) {
+      reordered.push(itemMap.get(id));
+      itemMap.delete(id);
+    }
+  }
+
+  // Append any items that were not part of the payload
+  for (const item of itemMap.values()) {
+    reordered.push(item);
+  }
+
+  const saved = saveItems(reordered);
+  if (!saved) {
+    return res.status(500).json({ error: 'Fehler beim Speichern der neuen Reihenfolge' });
+  }
+
+  res.json({ success: true, items: reordered });
+};
+
+app.put('/api/items/reorder', handleReorder);
+app.post('/api/items/reorder', handleReorder);
 
 // PUT /api/items/:id - update an existing wish
 app.put('/api/items/:id', (req, res) => {
@@ -428,7 +506,11 @@ app.put('/api/items/:id', (req, res) => {
   const existing = items[itemIndex];
 
   let finalTitle = title !== undefined ? title.trim() : existing.title;
-  let finalUrl = url !== undefined ? (url.trim() ? (url.trim().startsWith('http') ? url.trim() : 'https://' + url.trim()) : '') : existing.url;
+  let finalUrl = url !== undefined ? url.trim() : existing.url;
+  if (finalUrl && !/^https?:\/\//i.test(finalUrl)) {
+    finalUrl = 'https://' + finalUrl;
+  }
+
   let finalImage = imageUrl !== undefined ? imageUrl.trim() : existing.imageUrl;
   let finalPrice = price !== undefined ? price.trim() : existing.price;
   let finalNote = note !== undefined ? note.trim() : existing.note;
@@ -442,7 +524,7 @@ app.put('/api/items/:id', (req, res) => {
 
   items[itemIndex] = {
     ...existing,
-    title: finalTitle || existing.title,
+    title: finalTitle || existing.title || "Wunsch",
     url: finalUrl,
     imageUrl: finalImage,
     siteName: finalSite,
@@ -451,7 +533,11 @@ app.put('/api/items/:id', (req, res) => {
     updatedAt: Date.now()
   };
 
-  saveItems(items);
+  const saved = saveItems(items);
+  if (!saved) {
+    return res.status(500).json({ error: 'Fehler beim Speichern der Änderungen' });
+  }
+
   res.json({ success: true, item: items[itemIndex] });
 });
 
@@ -466,7 +552,11 @@ app.delete('/api/items/:id', (req, res) => {
     return res.status(404).json({ error: 'Geschenk nicht gefunden' });
   }
 
-  saveItems(items);
+  const saved = saveItems(items);
+  if (!saved) {
+    return res.status(500).json({ error: 'Fehler beim Löschen' });
+  }
+
   res.json({ success: true, message: 'Geschenk entfernt' });
 });
 

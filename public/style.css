@@ -304,6 +304,91 @@ body {
   border-color: rgba(0, 0, 0, 0.12);
 }
 
+/* Admin Order Controls */
+.card-order-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 6px 0 0;
+  border-right: 1px solid var(--border-subtle);
+  margin-right: -2px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.btn-order-move {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.btn-order-move:hover:not(:disabled) {
+  background: var(--bg-subtle-hover);
+  color: var(--color-primary);
+}
+
+.btn-order-move:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+.btn-order-move svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.5;
+}
+
+.drag-handle {
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 3px 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all var(--transition-fast);
+}
+
+.drag-handle:hover {
+  color: var(--text-main);
+  background: var(--bg-subtle);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
+}
+
+/* Dragging state for cards */
+.list-card.is-dragging {
+  opacity: 0.45;
+  transform: scale(0.98);
+  border: 1px dashed var(--color-primary);
+  background: var(--bg-subtle);
+}
+
+.list-card.drag-over-above {
+  border-top: 3px solid var(--color-primary) !important;
+}
+
+.list-card.drag-over-below {
+  border-bottom: 3px solid var(--color-primary) !important;
+}
+
 /* Left: Compact Square Image Thumbnail */
 .list-card-thumb-wrap {
   width: 82px;

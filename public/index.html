@@ -110,11 +110,11 @@
         <button id="closeAddModalBtn" class="btn-close" aria-label="Schließen"><i data-lucide="x"></i></button>
       </div>
 
-      <form id="addWishForm" class="modal-body">
+      <form id="addWishForm" class="modal-body" novalidate>
         <div class="form-group">
-          <label for="urlInput">Produktlink (URL) <span class="required">*</span></label>
+          <label for="urlInput">Produktlink (URL) <span class="text-muted font-normal">(optional)</span></label>
           <div class="input-with-button">
-            <input type="url" id="urlInput" placeholder="https://amazon.de/... oder anderer Shop" required autocomplete="off">
+            <input type="text" id="urlInput" placeholder="amazon.de/... oder anderer Shop" autocomplete="off" inputmode="url">
             <button type="button" id="fetchPreviewBtn" class="btn btn-secondary btn-sm">
               <span class="btn-text">Vorschau</span>
               <span class="spinner-sm hidden"></span>
@@ -139,7 +139,7 @@
         </div>
 
         <div class="form-group">
-          <label for="titleInput">Titel / Name</label>
+          <label for="titleInput">Titel / Name <span class="required">*</span></label>
           <input type="text" id="titleInput" placeholder="z. B. Sony Kopfhörer oder Buch" required>
         </div>
 
@@ -150,7 +150,7 @@
           </div>
           <div class="form-group col">
             <label for="imageUrlInput">Bild-URL (optional)</label>
-            <input type="url" id="imageUrlInput" placeholder="https://...">
+            <input type="text" id="imageUrlInput" placeholder="https://..." inputmode="url">
           </div>
         </div>
 
