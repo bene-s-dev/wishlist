@@ -91,6 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   updateAdminUI();
   loadItems();
+  if (window.lucide) {
+    lucide.createIcons();
+  }
 
   // Polling for live sync every 15 seconds
   setInterval(loadItems, 15000);
@@ -162,7 +165,7 @@ function setupEventListeners() {
         pinInput.value = '';
         updateAdminUI();
         renderItems();
-        showToast('Erfolgreich angemeldet! ✨');
+        showToast('Erfolgreich angemeldet');
         // Immediately open Add Modal!
         setTimeout(openAddModal, 200);
       } else {
@@ -179,28 +182,30 @@ function setupEventListeners() {
   cancelPinBtn.addEventListener('click', () => adminPinModal.classList.add('hidden'));
 
   // Share button
-  shareBtn.addEventListener('click', async () => {
-    const shareData = {
-      title: "Bene's Wunschliste",
-      text: "Hier ist meine Wunschliste mit Geschenkideen! 🎁",
-      url: window.location.href.split('?')[0]
-    };
+  if (shareBtn) {
+    shareBtn.addEventListener('click', async () => {
+      const shareData = {
+        title: "Benes Wunschliste",
+        text: "Hier ist meine Wunschliste mit Geschenkideen!",
+        url: window.location.href.split('?')[0]
+      };
 
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch (err) {
-        // cancelled
+      if (navigator.share) {
+        try {
+          await navigator.share(shareData);
+        } catch (err) {
+          // cancelled
+        }
+      } else {
+        try {
+          await navigator.clipboard.writeText(shareData.url);
+          showToast('Link in Zwischenablage kopiert');
+        } catch (e) {
+          prompt('Link kopieren:', shareData.url);
+        }
       }
-    } else {
-      try {
-        await navigator.clipboard.writeText(shareData.url);
-        showToast('Link in Zwischenablage kopiert! 📋');
-      } catch (e) {
-        prompt('Link kopieren:', shareData.url);
-      }
-    }
-  });
+    });
+  }
 
   // Open & Close Add Modal
   function openAddModal() {
@@ -259,7 +264,7 @@ function setupEventListeners() {
       const data = await res.json();
       if (res.ok) {
         addModal.classList.add('hidden');
-        showToast('Wunsch erfolgreich eingetragen! 🎁');
+        showToast('Wunsch erfolgreich eingetragen');
         await loadItems();
       } else {
         alert(data.error || 'Fehler beim Speichern');
@@ -304,14 +309,15 @@ function setupEventListeners() {
         localStorage.setItem('bene_my_claims', JSON.stringify(myClaims));
 
         launchConfetti();
-        showToast('Vielen Dank! Du schenkst Bene eine Freude 🎉');
+        showToast('Vielen Dank! Du schenkst Bene eine Freude');
         await loadItems();
       }
     } catch (err) {
       alert('Fehler beim Reservieren. Bitte erneut versuchen.');
     } finally {
       doClaimBtn.disabled = false;
-      doClaimBtn.textContent = 'Ja, ich schenke das! 🎁';
+      doClaimBtn.innerHTML = '<i data-lucide="gift"></i> Ja, ich schenke das!';
+      if (window.lucide) lucide.createIcons();
       targetClaimItem = null;
     }
   });
@@ -400,24 +406,16 @@ async function loadItems() {
 
 function updateCounts() {
   const total = items.length;
-  const claimedCount = items.filter(it => it.claimed).length;
-  const freeCount = total - claimedCount;
-
-  countAll.textContent = total;
-  countFree.textContent = freeCount;
-  countClaimed.textContent = claimedCount;
+  if (countAll) countAll.textContent = total;
+  if (countFree) countFree.textContent = items.filter(it => !it.claimed).length;
+  if (countClaimed) countClaimed.textContent = items.filter(it => it.claimed).length;
 }
 
 // Render wide horizontal list items
 function renderItems() {
   itemsList.innerHTML = '';
 
-  let filtered = items;
-  if (currentFilter === 'free') {
-    filtered = items.filter(it => !it.claimed);
-  } else if (currentFilter === 'claimed') {
-    filtered = items.filter(it => it.claimed);
-  }
+  const filtered = items;
 
   if (items.length === 0) {
     emptyState.classList.remove('hidden');
@@ -428,10 +426,9 @@ function renderItems() {
 
   filtered.forEach(item => {
     const isClaimedByMe = myClaims[item.id] === deviceClaimToken && item.claimed;
-    const isClaimedByOther = item.claimed && !isClaimedByMe;
 
     const card = document.createElement('article');
-    card.className = `list-card ${item.claimed ? 'is-claimed' : ''}`;
+    card.className = 'list-card';
 
     let domainName = item.siteName || '';
     if (!domainName && item.url) {
@@ -442,43 +439,36 @@ function renderItems() {
       }
     }
 
-    // Thumbnail
+    // Thumbnail - never reveals claimed status of others beforehand
     let thumbHtml = '';
     if (item.imageUrl) {
       thumbHtml = `
         <div class="list-card-thumb-wrap">
-          <img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.title)}" class="list-card-thumb" loading="lazy" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'list-card-placeholder\\'>🎁</div>';">
-          ${isClaimedByMe ? `<span class="thumb-user-badge">Reserviert</span>` : (isClaimedByOther ? `<span class="thumb-claimed-badge">Vergeben</span>` : '')}
+          <img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.title)}" class="list-card-thumb" loading="lazy" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'list-card-placeholder\\'><i data-lucide=\\'gift\\'></i></div>'; if (window.lucide) lucide.createIcons();">
+          ${isClaimedByMe ? `<span class="thumb-user-badge">Reserviert</span>` : ''}
         </div>
       `;
     } else {
       thumbHtml = `
         <div class="list-card-thumb-wrap">
-          <div class="list-card-placeholder">🎁</div>
-          ${isClaimedByMe ? `<span class="thumb-user-badge">Reserviert</span>` : (isClaimedByOther ? `<span class="thumb-claimed-badge">Vergeben</span>` : '')}
+          <div class="list-card-placeholder"><i data-lucide="gift"></i></div>
+          ${isClaimedByMe ? `<span class="thumb-user-badge">Reserviert</span>` : ''}
         </div>
       `;
     }
 
-    // Action button
+    // Action button - says "Noch frei?" for everyone else
     let actionBtnHtml = '';
-    if (!item.claimed) {
-      actionBtnHtml = `
-        <button class="btn-claim-inline available" data-action="claim" data-id="${item.id}">
-          🎁 Ich schenke das
-        </button>
-      `;
-    } else if (isClaimedByMe) {
+    if (isClaimedByMe) {
       actionBtnHtml = `
         <button class="btn-claim-inline mine" data-action="unclaim" data-id="${item.id}" title="Klick zum Freigeben">
-          ✓ Von dir reserviert
+          <i data-lucide="check"></i> Von dir reserviert
         </button>
       `;
     } else {
-      // Claimed by someone else -> Clicking brings up "Das wird schon geschenkt!"
       actionBtnHtml = `
-        <button class="btn-claim-inline taken" data-action="already-claimed" data-id="${item.id}">
-          🔒 Schon geschenkt
+        <button class="btn-claim-inline available" data-action="check-claim" data-id="${item.id}">
+          Noch frei?
         </button>
       `;
     }
@@ -490,19 +480,19 @@ function renderItems() {
 
         <div class="list-card-meta">
           ${item.price ? `<span class="list-card-price">${escapeHtml(item.price)}</span>` : ''}
-          ${domainName ? `<span class="meta-domain">🌐 ${escapeHtml(domainName)}</span>` : ''}
-          ${item.note ? `<span class="meta-note" title="${escapeHtml(item.note)}">💡 ${escapeHtml(item.note)}</span>` : ''}
+          ${domainName ? `<span class="meta-domain"><i data-lucide="globe"></i> ${escapeHtml(domainName)}</span>` : ''}
+          ${item.note ? `<span class="meta-note" title="${escapeHtml(item.note)}"><i data-lucide="file-text"></i> ${escapeHtml(item.note)}</span>` : ''}
         </div>
 
         <div class="list-card-actions">
           ${item.url ? `
             <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" class="btn-shop-link">
-              Zum Shop ↗
+              Zum Shop <i data-lucide="external-link"></i>
             </a>
           ` : '<span></span>'}
 
           <div style="display: flex; align-items: center; gap: 6px;">
-            ${isAdmin ? `<button class="btn-admin-del" data-action="admin-delete" data-id="${item.id}" title="Löschen">🗑️</button>` : ''}
+            ${isAdmin ? `<button class="btn-admin-del" data-action="admin-delete" data-id="${item.id}" title="Löschen"><i data-lucide="trash-2"></i></button>` : ''}
             ${actionBtnHtml}
           </div>
         </div>
@@ -510,15 +500,17 @@ function renderItems() {
     `;
 
     // Event listeners on card buttons
-    const claimBtn = card.querySelector('[data-action="claim"]');
-    if (claimBtn) {
-      claimBtn.addEventListener('click', () => openConfirmClaimModal(item));
+    const checkClaimBtn = card.querySelector('[data-action="check-claim"]');
+    if (checkClaimBtn) {
+      checkClaimBtn.addEventListener('click', () => {
+        if (item.claimed) {
+          openAlreadyClaimedModal(item.title);
+        } else {
+          openConfirmClaimModal(item);
+        }
+      });
     }
 
-    const takenBtn = card.querySelector('[data-action="already-claimed"]');
-    if (takenBtn) {
-      takenBtn.addEventListener('click', () => openAlreadyClaimedModal(item.title));
-    }
 
     const unclaimBtn = card.querySelector('[data-action="unclaim"]');
     if (unclaimBtn) {
@@ -540,6 +532,10 @@ function renderItems() {
 
     itemsList.appendChild(card);
   });
+
+  if (window.lucide) {
+    lucide.createIcons();
+  }
 }
 
 // Modals helpers
@@ -586,7 +582,7 @@ async function handleDeleteItem(itemId) {
   try {
     const res = await fetch(`/api/items/${itemId}`, { method: 'DELETE' });
     if (res.ok) {
-      showToast('Geschenk gelöscht 🗑️');
+      showToast('Geschenk gelöscht');
       delete myClaims[itemId];
       localStorage.setItem('bene_my_claims', JSON.stringify(myClaims));
       await loadItems();

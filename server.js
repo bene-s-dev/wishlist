@@ -7,7 +7,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.VERCEL ? '/tmp' : path.join(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'wishlist.json');
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'dreisam26!';
+const isProduction = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || (!isProduction ? 'dreisam26!' : null);
+
+if (isProduction && !process.env.ADMIN_PASSWORD) {
+  console.warn('⚠️ WARNUNG: ADMIN_PASSWORD ist online nicht gesetzt! Bitte in Vercel konfigurieren.');
+}
 
 // Ensure data directory exists and seed initial file if on Vercel
 if (!fs.existsSync(DATA_DIR)) {
@@ -124,19 +129,97 @@ async function scrapeUrlMetadata(targetUrl) {
     const $ = cheerio.load(html);
 
     // Extract title
-    let title = $('meta[property="og:title"]').attr('content') ||
+    let title = (domain.includes('amazon.') && $('#productTitle').text().trim()) ||
+                $('meta[property="og:title"]').attr('content') ||
                 $('meta[name="twitter:title"]').attr('content') ||
+                $('#productTitle').text().trim() ||
                 $('title').text().trim() ||
                 domain;
 
-    // Clean up title (remove trailing site name if too long)
-    title = title.replace(/\s*[|\-–—]\s*[^|\-–—]+$/, '').trim() || title;
+    // Clean up trailing shop brand names without truncating specs (e.g. ESP32-S3)
+    title = title
+      .replace(/\s*:\s*Amazon\.[a-z.]+.*$/i, '')
+      .replace(/\s*[|\-–—]\s*(Amazon|Galaxus|Zalando|Otto|MediaMarkt|Saturn|Thalia)[^|\-–—]*$/i, '')
+      .trim() || title;
 
-    // Extract image
+    // Extract image - standard meta tags
     let imageUrl = $('meta[property="og:image:secure_url"]').attr('content') ||
                    $('meta[property="og:image"]').attr('content') ||
                    $('meta[name="twitter:image"]').attr('content') ||
-                   $('link[rel="image_src"]').attr('href');
+                   $('link[rel="image_src"]').attr('href') ||
+                   $('meta[itemprop="image"]').attr('content');
+
+    // Amazon-specific image extraction
+    if (!imageUrl && domain.includes('amazon.')) {
+      const landingImg = $('#landingImage');
+      if (landingImg.length) {
+        imageUrl = landingImg.attr('data-old-hires') || landingImg.attr('src');
+        const dynamic = landingImg.attr('data-a-dynamic-image');
+        if (dynamic) {
+          try {
+            const parsed = JSON.parse(dynamic);
+            const urls = Object.keys(parsed);
+            if (urls.length > 0) {
+              // Pick highest resolution
+              urls.sort((a, b) => (parsed[b][0] * parsed[b][1]) - (parsed[a][0] * parsed[a][1]));
+              imageUrl = urls[0];
+            }
+          } catch (e) {}
+        }
+      }
+      if (!imageUrl) {
+        imageUrl = $('#imgBlkFront').attr('src') || $('#main-image').attr('src');
+      }
+      if (!imageUrl) {
+        // Fallback: search regex in raw html
+        const regexMatch = html.match(/https:\/\/[^"'\s]+media-amazon\.com\/images\/I\/[^"'\s]+?\.(?:jpg|jpeg|png|webp)/i);
+        if (regexMatch) {
+          imageUrl = regexMatch[0];
+        }
+      }
+    }
+
+    // Try detecting price in meta
+    let price = $('meta[property="product:price:amount"]').attr('content') ||
+                $('meta[property="og:price:amount"]').attr('content');
+    const currency = $('meta[property="product:price:currency"]').attr('content') || '€';
+    if (price) {
+      price = `${price} ${currency}`;
+    }
+
+    // Amazon price extraction
+    if (!price && domain.includes('amazon.')) {
+      const amazonPrice = $('.a-price .a-offscreen').first().text().trim() ||
+                          $('.priceToPay').first().text().trim() ||
+                          $('#priceblock_ourprice').text().trim() ||
+                          $('#priceblock_dealprice').text().trim();
+      if (amazonPrice) {
+        price = amazonPrice;
+      }
+    }
+
+    // JSON-LD fallback for images and prices (Shopify, WooCommerce, Galaxus, etc.)
+    $('script[type="application/ld+json"]').each((_, el) => {
+      try {
+        const raw = $(el).text();
+        const data = JSON.parse(raw);
+        const candidates = Array.isArray(data) ? data : [data];
+        for (const candidate of candidates) {
+          if (!imageUrl && candidate) {
+            if (typeof candidate.image === 'string') imageUrl = candidate.image;
+            else if (Array.isArray(candidate.image) && candidate.image[0]) {
+              imageUrl = typeof candidate.image[0] === 'string' ? candidate.image[0] : candidate.image[0].url;
+            } else if (candidate.image && candidate.image.url) imageUrl = candidate.image.url;
+          }
+          if (!price && candidate && candidate.offers) {
+            const offer = Array.isArray(candidate.offers) ? candidate.offers[0] : candidate.offers;
+            if (offer && offer.price) {
+              price = `${offer.price} ${offer.priceCurrency || '€'}`;
+            }
+          }
+        }
+      } catch (e) {}
+    });
 
     if (imageUrl && !imageUrl.startsWith('http')) {
       try {
@@ -153,14 +236,6 @@ async function scrapeUrlMetadata(targetUrl) {
 
     // Extract site name
     const siteName = $('meta[property="og:site_name"]').attr('content') || domain;
-
-    // Try detecting price in meta or JSON-LD
-    let price = $('meta[property="product:price:amount"]').attr('content') ||
-                $('meta[property="og:price:amount"]').attr('content');
-    const currency = $('meta[property="product:price:currency"]').attr('content') || '€';
-    if (price) {
-      price = `${price} ${currency}`;
-    }
 
     return {
       success: true,
@@ -196,7 +271,16 @@ app.post('/api/auth/verify', (req, res) => {
     return res.status(400).json({ success: false, error: 'Passwort erforderlich' });
   }
 
-  if (password === ADMIN_PASSWORD) {
+  // If running online and no env var set, block authentication
+  const currentPassword = process.env.ADMIN_PASSWORD || (!isProduction ? 'dreisam26!' : null);
+  if (!currentPassword) {
+    return res.status(500).json({
+      success: false,
+      error: 'ADMIN_PASSWORD Umgebungsvariable ist auf dem Server noch nicht konfiguriert!'
+    });
+  }
+
+  if (password === currentPassword) {
     return res.json({ success: true });
   } else {
     return res.status(401).json({ success: false, error: 'Falsches Passwort' });

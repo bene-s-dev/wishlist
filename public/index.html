@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Bene's Wunschliste 🎁</title>
+  <title>Benes Wunschliste</title>
   <meta name="description" content="Minimalistische Wunschliste mit Live-Vorschau. Anonym Geschenke reservieren.">
   
   <!-- Modern Clean Typography -->
@@ -14,6 +14,9 @@
   <!-- Canvas Confetti for Celebration -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,40 +26,22 @@
     <header class="header">
       <div class="header-top">
         <div class="header-brand">
-          <span class="brand-badge">Wunschliste</span>
-          <h1 class="header-title">Bene's Wünsche 🎁</h1>
-          <p class="header-subtitle">Hier findest du Dinge, über die ich mich riesig freue.</p>
-        </div>
-        
-        <div class="header-actions">
-          <button id="shareBtn" class="btn-icon" title="Liste teilen" aria-label="Liste teilen">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
-              <polyline points="16 6 12 2 8 6"></polyline>
-              <line x1="12" y1="2" x2="12" y2="15"></line>
-            </svg>
-          </button>
+          <h1 class="header-title">Benes Wünsche</h1>
+          <p class="header-subtitle">Hier findest du Dinge, über die ich mich freue.</p>
         </div>
       </div>
 
       <!-- Info Banner for Guests -->
       <div class="guest-info-banner">
-        <div class="banner-icon">💡</div>
+        <div class="banner-icon"><i data-lucide="info"></i></div>
         <div class="banner-text">
-          <span>Klicke auf <strong>„Ich schenke das“</strong>, um ein Geschenk anonym für Bene zu reservieren. Niemand sieht deinen Namen.</span>
+          <span>Klicke auf <strong>„Noch frei?“</strong>, um zu sehen, ob ein Wunsch verfügbar ist.<br>Der Beschenkte wird weder sehen, wer schenkt, noch ob etwas gewählt wurde.</span>
         </div>
       </div>
 
-      <!-- Filter Tabs & Stats -->
-      <div class="filter-bar">
-        <div class="filter-chips">
-          <button class="chip active" data-filter="all">Alle <span id="countAll" class="chip-count">0</span></button>
-          <button class="chip" data-filter="free">Noch frei <span id="countFree" class="chip-count">0</span></button>
-          <button class="chip" data-filter="claimed">Bereits vergeben <span id="countClaimed" class="chip-count">0</span></button>
-        </div>
-        <div id="adminIndicator" class="admin-indicator hidden" title="Admin-Modus aktiv">
-          <span class="admin-indicator-dot"></span> Admin aktiv
-        </div>
+      <!-- Admin Indicator (shown only when logged in) -->
+      <div id="adminIndicator" class="admin-indicator hidden" title="Admin-Modus aktiv">
+        <span class="admin-indicator-dot"></span> Admin aktiv
       </div>
     </header>
 
@@ -68,7 +53,7 @@
       </div>
 
       <div id="emptyState" class="state-container hidden">
-        <div class="empty-icon">✨</div>
+        <div class="empty-icon"><i data-lucide="gift"></i></div>
         <h3>Noch keine Wünsche eingetragen</h3>
         <p>Nutze den Button unten rechts, um ein neues Produkt einzutragen.</p>
         <button id="emptyAddBtn" class="btn btn-primary mt-3">+ Wunsch hinzufügen</button>
@@ -81,8 +66,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-      <p>Mit Liebe gemacht für Bene ✨</p>
-      <p class="footer-note">Reservierungen sind anonym. Bene sieht nicht, von wem das Geschenk kommt.</p>
+      <p class="footer-note">Reservierungen sind anonym. Der Beschenkte wird weder sehen, wer schenkt, noch ob etwas gewählt wurde.</p>
       <div class="footer-admin">
         <button id="footerAdminBtn" class="footer-login-link">anmelden</button>
         <button id="footerLogoutBtn" class="footer-login-link hidden">abmelden</button>
@@ -98,7 +82,7 @@
           <h2 id="addModalTitle" class="modal-title">Neues Produkt eintragen</h2>
           <p class="modal-subtitle">Link einfügen – Vorschaubild und Details werden automatisch geladen.</p>
         </div>
-        <button id="closeAddModalBtn" class="btn-close" aria-label="Schließen">✕</button>
+        <button id="closeAddModalBtn" class="btn-close" aria-label="Schließen"><i data-lucide="x"></i></button>
       </div>
 
       <form id="addWishForm" class="modal-body">
@@ -161,10 +145,10 @@
   <!-- Modal: "Das wird schon geschenkt!" (Clean Minimal Alert) -->
   <div id="alreadyClaimedModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
     <div class="modal-card modal-compact text-center">
-      <div class="modal-status-icon">🎁</div>
+      <div class="modal-status-icon"><i data-lucide="lock"></i></div>
       <h3 class="modal-title mb-1">Das wird schon geschenkt!</h3>
       <p class="modal-subtitle">
-        Jemand anderes hat dieses Geschenk bereits reserviert, damit es Bene nicht doppelt bekommt.
+        Jemand anderes hat dieses Geschenk bereits reserviert, damit es nicht doppelt geschenkt wird. Auch hier weiß der Beschenkte von nichts.
       </p>
       <div class="claimed-item-preview mt-3">
         <span id="claimedItemTitle" class="font-medium"></span>
@@ -176,10 +160,10 @@
   <!-- Modal: Confirmation to Claim ("Ich schenke das") -->
   <div id="confirmClaimModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
     <div class="modal-card modal-compact">
-      <div class="modal-status-icon">✨</div>
+      <div class="modal-status-icon"><i data-lucide="gift"></i></div>
       <h3 class="modal-title text-center mb-1">Möchtest du das schenken?</h3>
       <p class="modal-subtitle text-center">
-        Das Geschenk wird für dich reserviert. Bene sieht nicht, von wem es kommt – für andere steht es als bereits vergeben fest.
+        Das Geschenk ist noch frei und wird für dich reserviert. Der Beschenkte wird weder sehen, von wem, noch ob etwas gewählt wurde.
       </p>
 
       <div class="item-summary-box mt-3">
@@ -192,7 +176,7 @@
 
       <div class="modal-actions mt-4">
         <button id="cancelConfirmClaimBtn" class="btn btn-subtle">Abbrechen</button>
-        <button id="doClaimBtn" class="btn btn-primary">Ja, ich schenke das! 🎁</button>
+        <button id="doClaimBtn" class="btn btn-primary">Ja, ich schenke das!</button>
       </div>
     </div>
   </div>
@@ -202,7 +186,7 @@
     <div class="modal-card modal-compact">
       <div class="modal-header">
         <h3 class="modal-title">Anmelden</h3>
-        <button id="closePinModalBtn" class="btn-close">✕</button>
+        <button id="closePinModalBtn" class="btn-close" aria-label="Schließen"><i data-lucide="x"></i></button>
       </div>
       <p class="modal-subtitle">Passwort eingeben, um Produkte zu verwalten.</p>
       
