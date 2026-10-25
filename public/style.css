@@ -471,6 +471,48 @@ body {
   gap: 6px;
 }
 
+/* Light Orange Highlight Badge */
+.list-card-badge-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1px;
+}
+
+.badge-orange {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #FFF7ED;
+  color: #C2410C;
+  border: 1px solid #FED7AA;
+  box-shadow: 0 1px 2px rgba(234, 88, 12, 0.06);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2.5px 8.5px;
+  border-radius: var(--radius-full);
+  line-height: 1.25;
+  user-select: none;
+}
+
+.badge-orange svg,
+.badge-orange i {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.3;
+  color: #EA580C;
+  flex-shrink: 0;
+}
+
+/* Subtle warmth on card when badge is present */
+.list-card.has-badge {
+  border-color: rgba(249, 115, 22, 0.22);
+}
+
+.list-card.has-badge:hover {
+  border-color: rgba(249, 115, 22, 0.38);
+}
+
 .list-card-title {
   font-size: 14.5px;
   font-weight: 600;
@@ -924,6 +966,121 @@ input:focus {
   font-weight: 700;
   color: var(--text-secondary);
   margin-top: 2px;
+}
+
+.preview-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3.5px;
+  background: #FFF7ED;
+  color: #C2410C;
+  border: 1px solid #FED7AA;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1.5px 6.5px;
+  border-radius: var(--radius-full);
+  margin-bottom: 3px;
+  width: fit-content;
+}
+
+.preview-badge-pill svg,
+.preview-badge-pill i {
+  width: 10px;
+  height: 10px;
+  stroke-width: 2.3;
+  color: #EA580C;
+}
+
+.badge-orange-mini {
+  display: inline-block;
+  background: #FFF7ED;
+  color: #C2410C;
+  border: 1px solid #FED7AA;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* "oder ähnlich" Checkbox in Modal */
+.similar-checkbox-group {
+  margin-top: 6px;
+  margin-bottom: 14px;
+}
+
+.similar-checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  background: #FFFBF7;
+  border: 1.5px solid #FED7AA;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.similar-checkbox-label:hover {
+  background: #FFF7ED;
+  border-color: #FDBA74;
+}
+
+.similar-checkbox-label input[type="checkbox"] {
+  display: none;
+}
+
+.similar-checkbox-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1.5px solid #FDBA74;
+  background: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.similar-checkbox-label input[type="checkbox"]:checked + .similar-checkbox-box {
+  background: #EA580C;
+  border-color: #EA580C;
+}
+
+.similar-checkbox-label input[type="checkbox"]:checked + .similar-checkbox-box::after {
+  content: "";
+  display: block;
+  width: 5px;
+  height: 9px;
+  border: solid #FFFFFF;
+  border-width: 0 2.2px 2.2px 0;
+  transform: rotate(45deg);
+  margin-bottom: 2px;
+}
+
+.similar-checkbox-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.similar-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+}
+
+.similar-desc {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.35;
 }
 
 /* Item Summary inside Modals */

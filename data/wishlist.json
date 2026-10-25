@@ -11,6 +11,8 @@
     "claimedAt": null,
     "claimerToken": null,
     "createdAt": 1792936954844,
-    "updatedAt": 1792940623197
+    "updatedAt": 1792946126115,
+    "badge": "oder ähnlich",
+    "similarAllowed": true
   }
 ]

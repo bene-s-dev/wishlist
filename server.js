@@ -110,6 +110,7 @@ const initialWishes = [
     siteName: "aarke.com",
     price: "ca. 190 €",
     note: "Farbe: Sand oder Edelstahl matt",
+    badge: "Favorit",
     claimed: false,
     claimedAt: null,
     claimerToken: null,
@@ -123,6 +124,7 @@ const initialWishes = [
     siteName: "thalia.de",
     price: "ca. 35 €",
     note: "Gerne als Hardcover",
+    badge: "",
     claimed: true,
     claimedAt: Date.now() - 3600000,
     claimerToken: "sample-other-guest",
@@ -136,6 +138,7 @@ const initialWishes = [
     siteName: "sony.de",
     price: "ca. 299 €",
     note: "Farbe: Schwarz oder Silber",
+    badge: "",
     claimed: false,
     claimedAt: null,
     claimerToken: null,
@@ -442,7 +445,7 @@ app.post('/api/scrape', async (req, res) => {
 
 // POST /api/items - create new wish item
 app.post('/api/items', async (req, res) => {
-  const { url, title, imageUrl, price, note, siteName } = req.body;
+  const { url, title, imageUrl, price, note, siteName, badge, similarAllowed } = req.body;
   if (!url && !title) {
     return res.status(400).json({ error: 'Link oder Titel erforderlich' });
   }
@@ -490,6 +493,8 @@ app.post('/api/items', async (req, res) => {
     }
   }
 
+  const isSimilar = !!similarAllowed || badge === 'oder ähnlich';
+
   const newItem = {
     id: "item-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
     title: finalTitle,
@@ -498,6 +503,8 @@ app.post('/api/items', async (req, res) => {
     siteName: finalSite,
     price: finalPrice,
     note: (note || '').trim(),
+    similarAllowed: isSimilar,
+    badge: isSimilar ? 'oder ähnlich' : (badge || '').trim(),
     claimed: false,
     claimedAt: null,
     claimerToken: null,
@@ -620,7 +627,7 @@ app.post('/api/items/reorder', handleReorder);
 // PUT /api/items/:id - update an existing wish
 app.put('/api/items/:id', async (req, res) => {
   const { id } = req.params;
-  const { url, title, imageUrl, price, note, siteName } = req.body;
+  const { url, title, imageUrl, price, note, siteName, badge, similarAllowed } = req.body;
 
   const items = await loadItems();
   const itemIndex = items.findIndex(it => it.id === id);
@@ -642,6 +649,17 @@ app.put('/api/items/:id', async (req, res) => {
   let finalNote = note !== undefined ? note.trim() : existing.note;
   let finalSite = siteName !== undefined ? siteName.trim() : existing.siteName;
 
+  let finalSimilarAllowed;
+  if (similarAllowed !== undefined) {
+    finalSimilarAllowed = !!similarAllowed;
+  } else if (badge !== undefined) {
+    finalSimilarAllowed = badge === 'oder ähnlich';
+  } else {
+    finalSimilarAllowed = !!(existing.similarAllowed || existing.badge === 'oder ähnlich');
+  }
+
+  let finalBadge = finalSimilarAllowed ? 'oder ähnlich' : (badge !== undefined ? badge.trim() : (existing.badge === 'oder ähnlich' ? '' : (existing.badge || '')));
+
   if (finalUrl && (!finalSite || finalSite === '')) {
     try {
       finalSite = new URL(finalUrl).hostname.replace(/^www\./, '');
@@ -656,6 +674,8 @@ app.put('/api/items/:id', async (req, res) => {
     siteName: finalSite,
     price: finalPrice,
     note: finalNote,
+    similarAllowed: finalSimilarAllowed,
+    badge: finalBadge,
     updatedAt: Date.now()
   };
 

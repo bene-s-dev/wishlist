@@ -61,6 +61,8 @@ const titleInput = document.getElementById('titleInput');
 const priceInput = document.getElementById('priceInput');
 const imageUrlInput = document.getElementById('imageUrlInput');
 const noteInput = document.getElementById('noteInput');
+const similarCheckbox = document.getElementById('similarCheckbox');
+const previewBadge = document.getElementById('previewBadge');
 
 // Already Claimed Modal
 const alreadyClaimedModal = document.getElementById('alreadyClaimedModal');
@@ -85,6 +87,22 @@ const pinError = document.getElementById('pinError');
 
 // Toast Container
 const toastContainer = document.getElementById('toastContainer');
+
+// ========================================================
+// BADGE HELPERS: "oder ähnlich"
+// ========================================================
+
+function updateSimilarPreview() {
+  if (!previewBadge) return;
+  if (similarCheckbox && similarCheckbox.checked) {
+    previewBadge.innerHTML = `<i data-lucide="layers"></i> <span>oder ähnlich</span>`;
+    previewBadge.classList.remove('hidden');
+    if (window.lucide) lucide.createIcons();
+  } else {
+    previewBadge.innerHTML = '';
+    previewBadge.classList.add('hidden');
+  }
+}
 
 // ========================================================
 // INITIALIZATION
@@ -267,6 +285,11 @@ function setupEventListeners() {
     }
   });
 
+  // "oder ähnlich" Checkbox in modal
+  if (similarCheckbox) {
+    similarCheckbox.addEventListener('change', updateSimilarPreview);
+  }
+
   // Submit wish (create or edit)
   addWishForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -304,12 +327,16 @@ function setupEventListeners() {
     submitBtn.disabled = true;
     submitBtn.textContent = isEdit ? 'Aktualisieren...' : 'Speichern...';
 
+    const isSimilar = similarCheckbox ? similarCheckbox.checked : false;
+
     const payload = {
       url: rawUrl,
       title: titleVal,
       imageUrl: imageUrlInput.value.trim(),
       price: priceInput.value.trim(),
       note: noteInput.value.trim(),
+      similarAllowed: isSimilar,
+      badge: isSimilar ? 'oder ähnlich' : '',
       siteName: previewSite.textContent && previewSite.textContent !== 'shop.de' ? previewSite.textContent.trim() : ''
     };
 
@@ -399,6 +426,8 @@ function setupEventListeners() {
 function openAddModal() {
   editingItemId = null;
   addWishForm.reset();
+  if (similarCheckbox) similarCheckbox.checked = false;
+  updateSimilarPreview();
   document.getElementById('addModalTitle').textContent = 'Neues Produkt eintragen';
   document.getElementById('submitAddBtn').textContent = 'Produkt speichern';
   modalPreviewContainer.classList.add('hidden');
@@ -418,6 +447,10 @@ function openEditModal(item) {
   priceInput.value = item.price || '';
   imageUrlInput.value = item.imageUrl || '';
   noteInput.value = item.note || '';
+
+  const isSimilar = !!(item.similarAllowed || item.badge === 'oder ähnlich');
+  if (similarCheckbox) similarCheckbox.checked = isSimilar;
+  updateSimilarPreview();
 
   let site = item.siteName || '';
   if (!site && item.url) {
@@ -440,6 +473,7 @@ function openEditModal(item) {
     } else {
       previewImg.style.display = 'none';
     }
+    updateSimilarPreview();
   } else {
     modalPreviewContainer.classList.add('hidden');
   }
@@ -587,8 +621,10 @@ function renderItems() {
   filtered.forEach((item, index) => {
     const isClaimedByMe = myClaims[item.id] === deviceClaimToken && item.claimed;
 
+    const isSimilar = !!(item.similarAllowed || item.badge === 'oder ähnlich');
+
     const card = document.createElement('article');
-    card.className = 'list-card';
+    card.className = isSimilar ? 'list-card has-badge' : 'list-card';
     card.dataset.id = item.id;
     card.dataset.index = index;
 
@@ -599,6 +635,19 @@ function renderItems() {
       } catch (e) {
         domainName = '';
       }
+    }
+
+    // Light Orange Badge "oder ähnlich"
+    let badgeHtml = '';
+    if (isSimilar) {
+      badgeHtml = `
+        <div class="list-card-badge-row">
+          <span class="badge-orange">
+            <i data-lucide="layers"></i>
+            <span>oder ähnlich</span>
+          </span>
+        </div>
+      `;
     }
 
     // Admin order controls (Move Up / Drag / Move Down)
@@ -659,6 +708,7 @@ function renderItems() {
       ${orderControlsHtml}
       ${thumbHtml}
       <div class="list-card-content">
+        ${badgeHtml}
         <h3 class="list-card-title">${escapeHtml(item.title)}</h3>
 
         <div class="list-card-meta">

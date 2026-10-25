@@ -132,6 +132,7 @@
               <span id="previewSite" class="preview-site-tag">shop.de</span>
             </div>
             <div class="preview-content">
+              <div id="previewBadge" class="preview-badge-pill hidden"></div>
               <div id="previewTitle" class="preview-title">Titel</div>
               <div id="previewPrice" class="preview-price"></div>
             </div>
@@ -157,6 +158,18 @@
         <div class="form-group">
           <label for="noteInput">Notiz / Details (optional)</label>
           <input type="text" id="noteInput" placeholder="z. B. Farbe: Schwarz, Größe M">
+        </div>
+
+        <!-- "oder ähnlich" Checkbox -->
+        <div class="form-group similar-checkbox-group">
+          <label class="similar-checkbox-label" for="similarCheckbox">
+            <input type="checkbox" id="similarCheckbox">
+            <span class="similar-checkbox-box"></span>
+            <span class="similar-checkbox-content">
+              <span class="similar-title">„oder ähnlich“ <span class="badge-orange-mini">Badge</span></span>
+              <span class="similar-desc">Aktivieren, wenn andere Varianten, Farben oder Modelle auch okay sind.</span>
+            </span>
+          </label>
         </div>
 
         <div class="modal-actions">
