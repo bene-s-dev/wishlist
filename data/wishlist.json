@@ -1,0 +1,41 @@
+[
+  {
+    "id": "item-1",
+    "title": "Aarke Carbonator 3 Wassersprudler (Edelstahl matt)",
+    "url": "https://www.aarke.com/de/carbonator-3-steel",
+    "imageUrl": "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=800&q=80",
+    "siteName": "aarke.com",
+    "price": "ca. 190 €",
+    "note": "Farbe: Sand oder Edelstahl matt",
+    "claimed": false,
+    "claimedAt": null,
+    "claimerToken": null,
+    "createdAt": 1792762331050
+  },
+  {
+    "id": "item-2",
+    "title": "Das große Buch der Kaffeekunst & Barista Handbuch",
+    "url": "https://www.thalia.de",
+    "imageUrl": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=800&q=80",
+    "siteName": "thalia.de",
+    "price": "ca. 35 €",
+    "note": "Gerne als Hardcover",
+    "claimed": true,
+    "claimedAt": 1792931531050,
+    "claimerToken": "sample-other-guest",
+    "createdAt": 1792848731050
+  },
+  {
+    "id": "item-3",
+    "title": "Sony WH-1000XM5 Noise Cancelling Kopfhörer",
+    "url": "https://www.sony.de",
+    "imageUrl": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=800&q=80",
+    "siteName": "sony.de",
+    "price": "ca. 299 €",
+    "note": "Farbe: Schwarz oder Silber",
+    "claimed": false,
+    "claimedAt": null,
+    "claimerToken": null,
+    "createdAt": 1792935131050
+  }
+]

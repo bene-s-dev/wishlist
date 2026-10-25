@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Bene's Wunschliste 🎁</title>
+  <meta name="description" content="Minimalistische Wunschliste mit Live-Vorschau. Anonym Geschenke reservieren.">
+  
+  <!-- Modern Clean Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Canvas Confetti for Celebration -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+    
+    <!-- Top Header -->
+    <header class="header">
+      <div class="header-top">
+        <div class="header-brand">
+          <span class="brand-badge">Wunschliste</span>
+          <h1 class="header-title">Bene's Wünsche 🎁</h1>
+          <p class="header-subtitle">Hier findest du Dinge, über die ich mich riesig freue.</p>
+        </div>
+        
+        <div class="header-actions">
+          <button id="shareBtn" class="btn-icon" title="Liste teilen" aria-label="Liste teilen">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+              <polyline points="16 6 12 2 8 6"></polyline>
+              <line x1="12" y1="2" x2="12" y2="15"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Info Banner for Guests -->
+      <div class="guest-info-banner">
+        <div class="banner-icon">💡</div>
+        <div class="banner-text">
+          <span>Klicke auf <strong>„Ich schenke das“</strong>, um ein Geschenk anonym für Bene zu reservieren. Niemand sieht deinen Namen.</span>
+        </div>
+      </div>
+
+      <!-- Filter Tabs & Stats -->
+      <div class="filter-bar">
+        <div class="filter-chips">
+          <button class="chip active" data-filter="all">Alle <span id="countAll" class="chip-count">0</span></button>
+          <button class="chip" data-filter="free">Noch frei <span id="countFree" class="chip-count">0</span></button>
+          <button class="chip" data-filter="claimed">Bereits vergeben <span id="countClaimed" class="chip-count">0</span></button>
+        </div>
+        <div id="adminIndicator" class="admin-indicator hidden" title="Admin-Modus aktiv">
+          <span class="admin-indicator-dot"></span> Admin aktiv
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Wishlist Items List (Compact horizontal rows) -->
+    <main class="main-content">
+      <div id="loadingState" class="state-container hidden">
+        <div class="spinner"></div>
+        <p>Lade Wunschliste...</p>
+      </div>
+
+      <div id="emptyState" class="state-container hidden">
+        <div class="empty-icon">✨</div>
+        <h3>Noch keine Wünsche eingetragen</h3>
+        <p>Nutze den Button unten rechts, um ein neues Produkt einzutragen.</p>
+        <button id="emptyAddBtn" class="btn btn-primary mt-3">+ Wunsch hinzufügen</button>
+      </div>
+
+      <div id="itemsList" class="items-list">
+        <!-- Rendered dynamically as wide list cards -->
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Mit Liebe gemacht für Bene ✨</p>
+      <p class="footer-note">Reservierungen sind anonym. Bene sieht nicht, von wem das Geschenk kommt.</p>
+      <div class="footer-admin">
+        <button id="footerAdminBtn" class="footer-login-link">anmelden</button>
+        <button id="footerLogoutBtn" class="footer-login-link hidden">abmelden</button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Modal: Add New Wish (with Live OG Preview) -->
+  <div id="addModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="addModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h2 id="addModalTitle" class="modal-title">Neues Produkt eintragen</h2>
+          <p class="modal-subtitle">Link einfügen – Vorschaubild und Details werden automatisch geladen.</p>
+        </div>
+        <button id="closeAddModalBtn" class="btn-close" aria-label="Schließen">✕</button>
+      </div>
+
+      <form id="addWishForm" class="modal-body">
+        <div class="form-group">
+          <label for="urlInput">Produktlink (URL) <span class="required">*</span></label>
+          <div class="input-with-button">
+            <input type="url" id="urlInput" placeholder="https://amazon.de/... oder anderer Shop" required autocomplete="off">
+            <button type="button" id="fetchPreviewBtn" class="btn btn-secondary btn-sm">
+              <span class="btn-text">Vorschau</span>
+              <span class="spinner-sm hidden"></span>
+            </button>
+          </div>
+          <span class="field-hint">Bild, Titel und Preis werden beim Einfügen automatisch erkannt.</span>
+        </div>
+
+        <!-- Live Preview inside Modal -->
+        <div id="modalPreviewContainer" class="preview-box hidden">
+          <div class="preview-label">Erkannte Vorschau:</div>
+          <div class="preview-card">
+            <div class="preview-img-wrap">
+              <img id="previewImg" src="" alt="Vorschau" class="preview-img">
+              <span id="previewSite" class="preview-site-tag">shop.de</span>
+            </div>
+            <div class="preview-content">
+              <div id="previewTitle" class="preview-title">Titel</div>
+              <div id="previewPrice" class="preview-price"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="titleInput">Titel / Name</label>
+          <input type="text" id="titleInput" placeholder="z. B. Sony Kopfhörer oder Buch" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col">
+            <label for="priceInput">Preis (optional)</label>
+            <input type="text" id="priceInput" placeholder="z. B. 49 €">
+          </div>
+          <div class="form-group col">
+            <label for="imageUrlInput">Bild-URL (optional)</label>
+            <input type="url" id="imageUrlInput" placeholder="https://...">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="noteInput">Notiz / Details (optional)</label>
+          <input type="text" id="noteInput" placeholder="z. B. Farbe: Schwarz, Größe M">
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="cancelAddBtn" class="btn btn-subtle">Abbrechen</button>
+          <button type="submit" id="submitAddBtn" class="btn btn-primary">Produkt speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: "Das wird schon geschenkt!" (Clean Minimal Alert) -->
+  <div id="alreadyClaimedModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal-card modal-compact text-center">
+      <div class="modal-status-icon">🎁</div>
+      <h3 class="modal-title mb-1">Das wird schon geschenkt!</h3>
+      <p class="modal-subtitle">
+        Jemand anderes hat dieses Geschenk bereits reserviert, damit es Bene nicht doppelt bekommt.
+      </p>
+      <div class="claimed-item-preview mt-3">
+        <span id="claimedItemTitle" class="font-medium"></span>
+      </div>
+      <button id="closeAlreadyClaimedBtn" class="btn btn-primary w-full mt-4">Alles klar</button>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmation to Claim ("Ich schenke das") -->
+  <div id="confirmClaimModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal-card modal-compact">
+      <div class="modal-status-icon">✨</div>
+      <h3 class="modal-title text-center mb-1">Möchtest du das schenken?</h3>
+      <p class="modal-subtitle text-center">
+        Das Geschenk wird für dich reserviert. Bene sieht nicht, von wem es kommt – für andere steht es als bereits vergeben fest.
+      </p>
+
+      <div class="item-summary-box mt-3">
+        <img id="confirmClaimImg" src="" alt="" class="summary-thumb">
+        <div class="summary-details">
+          <div id="confirmClaimTitle" class="summary-title"></div>
+          <div id="confirmClaimPrice" class="summary-price"></div>
+        </div>
+      </div>
+
+      <div class="modal-actions mt-4">
+        <button id="cancelConfirmClaimBtn" class="btn btn-subtle">Abbrechen</button>
+        <button id="doClaimBtn" class="btn btn-primary">Ja, ich schenke das! 🎁</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Admin PIN Unlock -->
+  <div id="adminPinModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal-card modal-compact">
+      <div class="modal-header">
+        <h3 class="modal-title">Anmelden</h3>
+        <button id="closePinModalBtn" class="btn-close">✕</button>
+      </div>
+      <p class="modal-subtitle">Passwort eingeben, um Produkte zu verwalten.</p>
+      
+      <form id="pinForm" class="mt-3">
+        <div class="form-group">
+          <input type="password" id="pinInput" placeholder="Passwort" autofocus autocomplete="current-password">
+          <span id="pinError" class="field-error hidden">Falsches Passwort.</span>
+        </div>
+        <div class="modal-actions mt-3">
+          <button type="button" id="cancelPinBtn" class="btn btn-subtle">Abbrechen</button>
+          <button type="submit" class="btn btn-primary">Anmelden</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
