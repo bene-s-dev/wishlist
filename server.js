@@ -5,11 +5,23 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'data', 'wishlist.json');
+const DATA_DIR = process.env.VERCEL ? '/tmp' : path.join(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'wishlist.json');
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'dreisam26!';
 
-// Ensure data directory exists
-if (!fs.existsSync(path.join(__dirname, 'data'))) {
-  fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+// Ensure data directory exists and seed initial file if on Vercel
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (process.env.VERCEL && !fs.existsSync(DATA_FILE)) {
+  const seedFile = path.join(__dirname, 'data', 'wishlist.json');
+  if (fs.existsSync(seedFile)) {
+    try {
+      fs.copyFileSync(seedFile, DATA_FILE);
+    } catch (e) {
+      console.warn('Could not seed /tmp/wishlist.json', e);
+    }
+  }
 }
 
 // Default initial items if wishlist is completely empty
@@ -177,6 +189,20 @@ async function scrapeUrlMetadata(targetUrl) {
 
 // API Routes
 
+// POST /api/auth/verify - check admin password
+app.post('/api/auth/verify', (req, res) => {
+  const { password } = req.body;
+  if (!password) {
+    return res.status(400).json({ success: false, error: 'Passwort erforderlich' });
+  }
+
+  if (password === ADMIN_PASSWORD) {
+    return res.json({ success: true });
+  } else {
+    return res.status(401).json({ success: false, error: 'Falsches Passwort' });
+  }
+});
+
 // GET /api/items - list all items
 app.get('/api/items', (req, res) => {
   const items = loadItems();
@@ -318,7 +344,11 @@ app.delete('/api/items/:id', (req, res) => {
   res.json({ success: true, message: 'Geschenk entfernt' });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Wishlist server running on http://localhost:${PORT}`);
-});
+// Start server (only if not running as serverless function on Vercel)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Wishlist server running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

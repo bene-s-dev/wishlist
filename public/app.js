@@ -142,21 +142,36 @@ function setupEventListeners() {
   });
 
   // PIN / Password Form Submit
-  pinForm.addEventListener('submit', (e) => {
+  pinForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const pin = pinInput.value.trim();
-    if (pin === 'dreisam26!') {
-      isAdmin = true;
-      localStorage.setItem('bene_wishlist_admin', 'true');
-      adminPinModal.classList.add('hidden');
-      updateAdminUI();
-      renderItems();
-      showToast('Erfolgreich angemeldet! ✨');
-      // Immediately open Add Modal!
-      setTimeout(openAddModal, 200);
-    } else {
+    if (!pin) return;
+
+    try {
+      const res = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pin })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        isAdmin = true;
+        localStorage.setItem('bene_wishlist_admin', 'true');
+        adminPinModal.classList.add('hidden');
+        pinError.classList.add('hidden');
+        pinInput.value = '';
+        updateAdminUI();
+        renderItems();
+        showToast('Erfolgreich angemeldet! ✨');
+        // Immediately open Add Modal!
+        setTimeout(openAddModal, 200);
+      } else {
+        pinError.classList.remove('hidden');
+        pinInput.select();
+      }
+    } catch (err) {
+      console.error('Login verification error:', err);
       pinError.classList.remove('hidden');
-      pinInput.select();
     }
   });
 

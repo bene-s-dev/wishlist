@@ -17,7 +17,7 @@ Eine minimalistische, clean gestaltete und für Mobilgeräte optimierte Wunschli
 - **↩️ Eigene Reservierung freigeben**: Wer ein Geschenk selbst reserviert hat, sieht den Status *„Von dir reserviert“* und kann die Reservierung bei Bedarf mit einem Klick wieder aufheben.
 - **🔑 Bene's Verwaltungsmodus**:
   - Ganz unten unter dem Footer über das unauffällige Wort **„anmelden“** erreichbar.
-  - Passwort: **`dreisam26!`** (im Eingabefeld maskiert).
+  - Passwort konfigurierbar über die Umgebungsvariable **`ADMIN_PASSWORD`** (Standardwert lokal: `dreisam26!`).
   - Nach der Anmeldung wechselt der Link zu **„+ Produkt eintragen“** und schaltet Lösch-Optionen frei.
 - **📤 Teilen-Funktion**: Kopiert den Link oder nutzt das native Teilen-Menü auf Smartphones.
 - **🎉 Konfetti-Animation**: Feiert die erfolgreiche Reservierung mit einem festlichen Konfetti-Effekt.
