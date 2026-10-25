@@ -540,6 +540,13 @@ body {
   font-size: 11.5px;
 }
 
+.list-card-shop-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .meta-domain {
   color: var(--text-secondary);
   background: var(--bg-subtle);
@@ -549,6 +556,14 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  font-size: 11.5px;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.meta-domain.meta-domain-link:hover {
+  color: var(--text-main);
+  background: var(--border-medium);
 }
 
 .meta-domain svg {

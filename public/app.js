@@ -706,17 +706,25 @@ function renderItems() {
 
         <div class="list-card-meta">
           ${item.price ? `<span class="list-card-price">${escapeHtml(item.price)}</span>` : ''}
-          ${domainName ? `<span class="meta-domain"><i data-lucide="globe"></i> ${escapeHtml(domainName)}</span>` : ''}
-          ${badgeHtml}
           ${item.note ? `<span class="meta-note" title="${escapeHtml(item.note)}"><i data-lucide="file-text"></i> ${escapeHtml(item.note)}</span>` : ''}
         </div>
 
         <div class="list-card-actions">
-          ${item.url ? `
-            <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" class="btn-shop-link">
-              Zum Shop <i data-lucide="external-link"></i>
-            </a>
-          ` : '<span></span>'}
+          <div class="list-card-shop-group">
+            ${domainName ? (item.url ? `
+              <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" class="meta-domain meta-domain-link">
+                <i data-lucide="globe"></i> ${escapeHtml(domainName)}
+              </a>
+            ` : `
+              <span class="meta-domain"><i data-lucide="globe"></i> ${escapeHtml(domainName)}</span>
+            `) : ''}
+            ${item.url ? `
+              <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" class="btn-shop-link">
+                Zum Shop <i data-lucide="external-link"></i>
+              </a>
+            ` : ''}
+            ${badgeHtml}
+          </div>
 
           <div style="display: flex; align-items: center; gap: 6px;">
             ${isAdmin ? `
